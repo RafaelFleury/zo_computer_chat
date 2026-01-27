@@ -38,17 +38,40 @@ router.post('/', async (req, res) => {
     // Get or create conversation
     if (!conversations.has(conversationId)) {
       conversations.set(conversationId, []);
+      logger.info(`Created new conversation in memory: ${conversationId}`);
     }
 
     const conversation = conversations.get(conversationId);
+    
+    // Log conversation state for debugging
+    logger.info(`Sending message to conversation ${conversationId}`, {
+      existingMessages: conversation.length,
+      conversationPreview: conversation.slice(-3).map(m => ({ 
+        role: m.role, 
+        contentLength: m.content?.length || 0,
+        hasToolCalls: !!m.tool_calls
+      }))
+    });
+    
+    // Ensure we have a fresh copy of the conversation array with proper format
+    const conversationForLLM = conversation.map(msg => ({
+      role: msg.role,
+      content: msg.content || '',
+      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
+      ...(msg.name && { name: msg.name }),
+      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
+    }));
+    
+    // Add the new user message
+    conversationForLLM.push({ role: 'user', content: message });
     conversation.push({ role: 'user', content: message });
 
     // Track tool calls
     const toolCalls = [];
 
-    // Send to LLM
+    // Send to LLM with full conversation history
     const response = await llmClient.chat(
-      conversation,
+      conversationForLLM,
       (toolCallData) => {
         // Log tool call
         addLog('tool_call', toolCallData);
@@ -108,9 +131,32 @@ router.post('/stream', async (req, res) => {
     // Get or create conversation
     if (!conversations.has(conversationId)) {
       conversations.set(conversationId, []);
+      logger.info(`Created new conversation in memory: ${conversationId}`);
     }
 
     const conversation = conversations.get(conversationId);
+    
+    // Log conversation state for debugging
+    logger.info(`Streaming message to conversation ${conversationId}`, {
+      existingMessages: conversation.length,
+      conversationPreview: conversation.slice(-3).map(m => ({ 
+        role: m.role, 
+        contentLength: m.content?.length || 0,
+        hasToolCalls: !!m.tool_calls
+      }))
+    });
+    
+    // Ensure we have a fresh copy of the conversation array to avoid mutation issues
+    const conversationForLLM = conversation.map(msg => ({
+      role: msg.role,
+      content: msg.content || '',
+      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
+      ...(msg.name && { name: msg.name }),
+      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
+    }));
+    
+    // Add the new user message
+    conversationForLLM.push({ role: 'user', content: message });
     conversation.push({ role: 'user', content: message });
 
     // Set up SSE
@@ -120,9 +166,9 @@ router.post('/stream', async (req, res) => {
 
     const toolCalls = [];
 
-    // Stream response
+    // Stream response with full conversation history
     const result = await llmClient.streamChat(
-      conversation,
+      conversationForLLM,
       (chunk) => {
         // Send chunk to client
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
@@ -261,10 +307,35 @@ router.get('/history/:id', async (req, res) => {
     const { id } = req.params;
     const messages = await chatPersistence.loadConversation(id);
 
-    // Also load into memory for continued chat
-    conversations.set(id, messages);
+    // Normalize messages to ensure proper format for LLM
+    // The LLM expects messages in OpenAI format: { role, content } or { role, content, tool_calls }
+    const normalizedMessages = messages.map(msg => {
+      // Ensure message has required fields
+      const normalized = {
+        role: msg.role,
+        content: msg.content || ''
+      };
+      
+      // Preserve tool_calls if present (for assistant messages that used tools)
+      if (msg.tool_calls) {
+        normalized.tool_calls = msg.tool_calls;
+      }
+      
+      // Preserve tool-specific fields if present (for tool role messages)
+      if (msg.role === 'tool' && msg.name && msg.tool_call_id) {
+        normalized.name = msg.name;
+        normalized.tool_call_id = msg.tool_call_id;
+      }
+      
+      return normalized;
+    });
 
-    res.json({ id, messages });
+    // Load into memory for continued chat - this ensures context is preserved
+    conversations.set(id, normalizedMessages);
+    
+    logger.info(`Conversation loaded into memory: ${id} (${normalizedMessages.length} messages)`);
+
+    res.json({ id, messages: normalizedMessages });
   } catch (error) {
     logger.error('Failed to load conversation:', error);
     res.status(404).json({ error: 'Conversation not found' });
