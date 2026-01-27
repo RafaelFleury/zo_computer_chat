@@ -1,0 +1,304 @@
+# Zo Computer Chat
+
+A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Computer's MCP server**, giving the LLM access to 50+ cloud-based tools including file operations, third-party integrations, web browsing, and more.
+
+## Features
+
+- **Advanced LLM**: Powered by GLM-4.7 with OpenAI-compatible API
+- **MCP Integration**: Full access to Zo Computer's 50+ tools via Model Context Protocol
+- **Real-time Chat**: Clean, responsive chat interface with markdown support
+- **Comprehensive Logging**: Detailed logs of all LLM requests, MCP tool calls, and system events
+- **Tool Visualization**: See which Zo tools are being used in real-time
+- **Token Tracking**: Monitor API usage and token consumption
+
+## Architecture
+
+```
+┌─────────────────┐
+│  React Frontend │
+│   (Vite + UI)   │
+└────────┬────────┘
+         │ HTTP/REST
+         │
+┌────────▼────────┐
+│  Express Server │
+│   (Node.js)     │
+├─────────────────┤
+│  LLM Client     │◄──── Z.AI API (GLM-4.7)
+│  MCP Client     │◄──── Zo MCP Server
+│  Logger         │
+└─────────────────┘
+```
+
+### Backend Components
+
+- **MCP Client** (`mcpClient.js`): Manages connection to Zo's MCP server, discovers available tools, and executes tool calls
+- **LLM Client** (`llmClient.js`): Handles GLM-4.7 API calls with function calling support
+- **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, and logs
+- **Logger** (`logger.js`): Winston-based logging with file rotation
+
+### Frontend Components
+
+- **ChatInterface**: Main chat UI with message history and markdown rendering
+- **LogsViewer**: Real-time activity logs with filtering and auto-refresh
+- **API Service**: Centralized API client for backend communication
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- [Zo Computer account](https://zo.computer) with API access
+- [Z.AI account](https://z.ai) with API access
+
+### Installation
+
+1. **Clone and navigate to the project**:
+   ```bash
+   cd zo_computer_chat
+   ```
+
+2. **Install backend dependencies**:
+   ```bash
+   cd backend
+   npm install
+   ```
+
+3. **Install frontend dependencies**:
+   ```bash
+   cd ../frontend
+   npm install
+   ```
+
+### Configuration
+
+1. **Backend environment variables**:
+   ```bash
+   cd backend
+   cp .env.example .env
+   ```
+
+   Edit `.env` and add your API keys:
+   ```env
+   ZO_API_KEY=your_zo_api_key_here
+   ZAI_API_KEY=your_zai_api_key_here
+   MODEL_NAME=glm-4-flash
+   PORT=3001
+   ```
+
+   **Getting API Keys**:
+   - **Zo API Key**: Go to [Zo Computer Settings](https://zo.computer) → API & MCP → Generate API Key
+   - **Z.AI API Key**: Sign up at [Z.AI](https://z.ai) and get your API key from the dashboard
+
+2. **Frontend environment variables**:
+   ```bash
+   cd ../frontend
+   cp .env.example .env
+   ```
+
+   The default configuration should work if backend runs on port 3001:
+   ```env
+   VITE_API_URL=http://localhost:3001
+   ```
+
+## Running the Application
+
+### Development Mode
+
+1. **Start the backend** (from `backend/` directory):
+   ```bash
+   npm run dev
+   ```
+
+   The server will start on `http://localhost:3001` and automatically:
+   - Connect to Zo MCP server
+   - Initialize GLM-4.7 client
+   - Display available MCP tools
+
+2. **Start the frontend** (from `frontend/` directory):
+   ```bash
+   npm run dev
+   ```
+
+   The app will open at `http://localhost:3000`
+
+### Production Build
+
+**Frontend**:
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+**Backend**:
+```bash
+cd backend
+npm start
+```
+
+## Usage
+
+### Chat Interface
+
+1. Navigate to the **Chat** tab
+2. Type your message in the input field
+3. The LLM will automatically use Zo tools when needed
+4. Tool usage is shown under messages with expandable details
+
+### Logs Viewer
+
+1. Navigate to the **Logs** tab
+2. View real-time activity logs including:
+   - User messages
+   - Assistant responses with token usage
+   - MCP tool calls with arguments and results
+   - Errors and debugging information
+3. Filter logs by type
+4. Enable auto-refresh for live updates
+5. Clear logs when needed
+
+## Available Models
+
+You can change the model by updating `MODEL_NAME` in backend `.env`:
+
+- `glm-4-flash` - Fast, cost-effective (default)
+- `glm-4-plus` - Most capable model
+- `glm-4-air` - Balanced performance
+- `glm-4-long` - Extended context window
+- `glm-4-flash-vision` - Vision capabilities
+
+See [Z.AI documentation](https://docs.z.ai/devpack/overview) for more details.
+
+## Zo MCP Tools
+
+The Zo MCP server provides 50+ tools including:
+
+**File & Shell Operations**:
+- Read, write, search files
+- Execute bash commands
+- File system navigation
+
+**Third-party Integrations**:
+- Gmail, Google Calendar
+- Notion, Linear, Airtable
+- Dropbox, Spotify
+
+**Advanced Features**:
+- Web browsing
+- Image generation
+- Scheduled tasks
+- Email and SMS
+
+**Full Control**:
+- Root server access
+- Persistent storage
+- Custom code execution
+
+## API Endpoints
+
+### Chat
+
+- `POST /api/chat` - Send message and get response
+- `POST /api/chat/stream` - Stream chat response (SSE)
+- `GET /api/chat/conversations` - List all conversations
+- `GET /api/chat/conversations/:id` - Get conversation history
+- `DELETE /api/chat/conversations/:id` - Delete conversation
+
+### Logs
+
+- `GET /api/chat/logs?type=...&limit=100` - Get session logs
+- `DELETE /api/chat/logs` - Clear session logs
+
+### System
+
+- `GET /health` - Health check and connection status
+- `GET /api/tools` - List available MCP tools
+
+## Logs
+
+Backend logs are stored in `backend/logs/`:
+- `combined.log` - All logs
+- `error.log` - Error logs only
+- `mcp.log` - MCP-specific detailed logs
+
+## Troubleshooting
+
+### Backend won't start
+
+- Verify API keys are set in `backend/.env`
+- Check that ports 3001 is available
+- Review `backend/logs/error.log` for details
+
+### MCP connection fails
+
+- Verify `ZO_API_KEY` is correct
+- Check Zo Computer service status at [status.zo.computer](https://status.zo.computer)
+- Ensure API key has proper permissions in Zo settings
+
+### Frontend can't connect to backend
+
+- Verify backend is running on the correct port
+- Check `VITE_API_URL` in `frontend/.env`
+- Review browser console for CORS errors
+
+### No tools available
+
+- Check backend logs for MCP connection errors
+- Verify Zo account has active subscription
+- Try reconnecting by restarting the backend
+
+## Development
+
+### Project Structure
+
+```
+zo_computer_chat/
+├── backend/
+│   ├── src/
+│   │   ├── routes/
+│   │   │   └── chat.js
+│   │   ├── services/
+│   │   │   ├── mcpClient.js
+│   │   │   └── llmClient.js
+│   │   ├── utils/
+│   │   │   └── logger.js
+│   │   └── index.js
+│   ├── logs/
+│   ├── package.json
+│   └── .env
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ChatInterface.jsx
+│   │   │   ├── ChatInterface.css
+│   │   │   ├── LogsViewer.jsx
+│   │   │   └── LogsViewer.css
+│   │   ├── services/
+│   │   │   └── api.js
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   └── .env
+└── README.md
+```
+
+### Adding New Features
+
+1. **New API Endpoint**: Add to `backend/src/routes/chat.js`
+2. **New MCP Functionality**: Extend `backend/src/services/mcpClient.js`
+3. **New UI Component**: Add to `frontend/src/components/`
+4. **New Log Type**: Add to logger and update LogsViewer filters
+
+## License
+
+MIT
+
+## Resources
+
+- [Zo Computer Documentation](https://docs.zocomputer.com)
+- [Z.AI Documentation](https://docs.z.ai)
+- [Model Context Protocol Spec](https://modelcontextprotocol.io)
+- [GLM-4 Models](https://docs.z.ai/devpack/overview)
