@@ -1,0 +1,396 @@
+/* PixelFace.css - Snappy, alive animations for the cute pixel face */
+
+/* =============================================================================
+   FACE CONTAINER - The whole monitor assembly
+   ============================================================================= */
+.pixel-face {
+  --face-bg: #FF8A9B;
+  --face-bg-light: #FFB6C1;
+  --feature-color: #1a1a1a;
+  --monitor-frame: #e8e4df;
+  --monitor-frame-dark: #d4d0cb;
+  --monitor-chin: #e0dcd7;
+  --monitor-stand: #c0bbb5;
+  --monitor-base: #9a958f;
+  --blush-color: rgba(255, 120, 140, 0.6);
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+  transform-origin: center center;
+}
+
+/* Breathing animation for idle state */
+.pixel-face.idle {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.pixel-face.talking {
+  animation: talkBounce 0.3s ease-in-out infinite;
+}
+
+.pixel-face.thinking {
+  animation: thinkSway 2s ease-in-out infinite;
+}
+
+/* =============================================================================
+   MONITOR SCREEN - The pink face area
+   ============================================================================= */
+.face-screen {
+  position: relative;
+  width: 280px;
+  height: 210px;
+  background: linear-gradient(
+    180deg,
+    var(--face-bg-light) 0%,
+    var(--face-bg) 100%
+  );
+  border-radius: 8px;
+  border: 12px solid var(--monitor-frame);
+  box-shadow: 
+    inset 0 0 30px rgba(255, 255, 255, 0.3),
+    0 4px 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  overflow: hidden;
+}
+
+/* Subtle screen glow effect */
+.face-screen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    rgba(255, 255, 255, 0.2) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+/* =============================================================================
+   EYES - The expressive square eyes
+   ============================================================================= */
+.eyes {
+  display: flex;
+  gap: 50px;
+  position: relative;
+  z-index: 2;
+}
+
+.eye {
+  width: 32px;
+  height: 32px;
+  background: var(--feature-color);
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  overflow: hidden;
+}
+
+/* Idle state - normal square eyes */
+.eye.idle {
+  transform: scaleY(1);
+}
+
+/* Talking state - eyes slightly larger, more alert */
+.eye.talking {
+  animation: eyeBlink 3s ease-in-out infinite;
+}
+
+/* Thinking state - squinted horizontal lines */
+.eye.thinking {
+  height: 8px;
+  border-radius: 2px;
+  animation: thinkingEyes 2s ease-in-out infinite;
+}
+
+/* Eye pupil/highlight for depth */
+.pupil {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  top: 4px;
+  left: 4px;
+  transition: all 0.15s ease;
+}
+
+.eye.thinking .pupil {
+  display: none;
+}
+
+/* =============================================================================
+   MOUTH - Animated for talking state
+   ============================================================================= */
+.mouth {
+  width: 16px;
+  height: 0;
+  background: var(--feature-color);
+  border-radius: 2px;
+  position: relative;
+  z-index: 2;
+  transition: all 0.1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  opacity: 0;
+}
+
+/* Show mouth when talking */
+.mouth.talking {
+  opacity: 1;
+  animation: mouthTalk 0.2s steps(3) infinite;
+}
+
+/* Small mouth hint when thinking */
+.mouth.thinking {
+  opacity: 1;
+  width: 12px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+/* =============================================================================
+   BLUSH MARKS - Extra cuteness
+   ============================================================================= */
+.blush {
+  position: absolute;
+  width: 24px;
+  height: 12px;
+  background: var(--blush-color);
+  border-radius: 50%;
+  top: 55%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  filter: blur(4px);
+}
+
+.blush.left {
+  left: 15%;
+}
+
+.blush.right {
+  right: 15%;
+}
+
+/* Show blush when talking (happy/engaged) */
+.pixel-face.talking .blush {
+  opacity: 1;
+  animation: blushPulse 0.6s ease-in-out infinite;
+}
+
+/* =============================================================================
+   MONITOR FRAME ELEMENTS
+   ============================================================================= */
+.monitor-chin {
+  width: 280px;
+  height: 24px;
+  background: linear-gradient(
+    180deg,
+    var(--monitor-frame) 0%,
+    var(--monitor-chin) 100%
+  );
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -4px;
+  border: 12px solid var(--monitor-frame);
+  border-top: none;
+}
+
+.monitor-logo {
+  width: 16px;
+  height: 16px;
+  background: var(--monitor-stand);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+.monitor-stand {
+  width: 40px;
+  height: 50px;
+  background: linear-gradient(
+    90deg,
+    var(--monitor-frame-dark) 0%,
+    var(--monitor-frame) 50%,
+    var(--monitor-frame-dark) 100%
+  );
+  border-radius: 4px 4px 0 0;
+}
+
+.monitor-base {
+  width: 120px;
+  height: 24px;
+  background: linear-gradient(
+    180deg,
+    var(--monitor-stand) 0%,
+    var(--monitor-base) 100%
+  );
+  border-radius: 50% 50% 8px 8px / 100% 100% 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* =============================================================================
+   ANIMATIONS - Snappy and alive!
+   ============================================================================= */
+
+/* Idle breathing - subtle, peaceful */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.02) translateY(-2px);
+  }
+}
+
+/* Talking bounce - energetic, engaged */
+@keyframes talkBounce {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.01) translateY(-3px);
+  }
+}
+
+/* Thinking sway - contemplative */
+@keyframes thinkSway {
+  0%, 100% {
+    transform: rotate(0deg) translateX(0);
+  }
+  25% {
+    transform: rotate(-1deg) translateX(-3px);
+  }
+  75% {
+    transform: rotate(1deg) translateX(3px);
+  }
+}
+
+/* Eye blink during talking */
+@keyframes eyeBlink {
+  0%, 45%, 55%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.1);
+  }
+}
+
+/* Thinking eyes shift */
+@keyframes thinkingEyes {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* Mouth talking animation - snappy open/close */
+@keyframes mouthTalk {
+  0% {
+    height: 4px;
+    width: 12px;
+  }
+  33% {
+    height: 16px;
+    width: 16px;
+  }
+  66% {
+    height: 8px;
+    width: 14px;
+  }
+  100% {
+    height: 4px;
+    width: 12px;
+  }
+}
+
+/* Blush pulse when happy */
+@keyframes blushPulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
+/* =============================================================================
+   STATE TRANSITIONS - Smooth but snappy
+   ============================================================================= */
+
+/* Quick snap for state changes */
+.pixel-face {
+  transition: transform 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Eye state transitions */
+.eye {
+  transition: 
+    width 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    height 0.15s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    border-radius 0.1s ease;
+}
+
+/* Mouth transitions */
+.mouth {
+  transition: 
+    opacity 0.1s ease,
+    width 0.1s cubic-bezier(0.68, -0.55, 0.265, 1.55),
+    height 0.1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* =============================================================================
+   RESPONSIVE SCALING
+   ============================================================================= */
+@media (max-width: 480px) {
+  .face-screen {
+    width: 220px;
+    height: 165px;
+    border-width: 8px;
+  }
+  
+  .eyes {
+    gap: 40px;
+  }
+  
+  .eye {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .eye.thinking {
+    height: 6px;
+  }
+  
+  .monitor-chin {
+    width: 220px;
+    height: 20px;
+    border-width: 8px;
+  }
+  
+  .monitor-stand {
+    width: 32px;
+    height: 40px;
+  }
+  
+  .monitor-base {
+    width: 100px;
+    height: 20px;
+  }
+}
+

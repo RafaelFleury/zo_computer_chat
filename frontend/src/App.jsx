@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import ChatInterface from './components/ChatInterface';
 import LogsViewer from './components/LogsViewer';
 import ChatHistory from './components/ChatHistory';
+import FaceTimeView from './components/FaceTimeView';
 import Toast from './components/Toast';
 import './App.css';
 
@@ -13,6 +14,13 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const chatHistoryRef = useRef(null);
+
+  // Streaming state for FaceTimeView
+  const [streamingState, setStreamingState] = useState({
+    status: 'idle', // 'idle' | 'talking' | 'thinking'
+    lastUpdate: Date.now()
+  });
+  const [currentToolCalls, setCurrentToolCalls] = useState([]);
 
   // Refresh chat history (called after message sent or conversation deleted)
   const refreshChatHistory = () => {
@@ -44,6 +52,19 @@ function App() {
     setUsage(loadedUsage);
   };
 
+  // Handle streaming state changes from ChatInterface
+  const handleStreamingStateChange = (status) => {
+    setStreamingState({
+      status,
+      lastUpdate: Date.now()
+    });
+  };
+
+  // Handle tool calls updates from ChatInterface
+  const handleToolCallsUpdate = (toolCalls) => {
+    setCurrentToolCalls(toolCalls);
+  };
+
   return (
     <div className={`app ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
       <Toast />
@@ -63,6 +84,12 @@ function App() {
           💬 Chat
         </button>
         <button
+          className={`tab ${activeTab === 'face' ? 'active' : ''}`}
+          onClick={() => setActiveTab('face')}
+        >
+          🤖 Face
+        </button>
+        <button
           className={`tab ${activeTab === 'logs' ? 'active' : ''}`}
           onClick={() => setActiveTab('logs')}
         >
@@ -79,6 +106,15 @@ function App() {
             onConversationChange={(id) => setConversationId(id)}
             onMessageSent={refreshChatHistory}
             onProcessingChange={setIsProcessing}
+            onStreamingStateChange={handleStreamingStateChange}
+            onToolCallsUpdate={handleToolCallsUpdate}
+          />
+        </div>
+        <div className={activeTab === 'face' ? 'tab-panel active' : 'tab-panel'}>
+          <FaceTimeView 
+            streamingState={streamingState}
+            currentToolCalls={currentToolCalls}
+            conversationId={conversationId}
           />
         </div>
         <div className={activeTab === 'logs' ? 'tab-panel active' : 'tab-panel'}>

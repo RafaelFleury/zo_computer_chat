@@ -1,0 +1,365 @@
+/* FaceTimeView.css - Full viewport face display with ambient effects */
+
+/* =============================================================================
+   MAIN CONTAINER
+   ============================================================================= */
+.facetime-view {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.facetime-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  z-index: 2;
+  position: relative;
+}
+
+/* =============================================================================
+   FACE WRAPPER - Responsive scaling
+   ============================================================================= */
+.face-wrapper {
+  /* Scale face to fill 60-80% of viewport while maintaining aspect ratio */
+  transform: scale(var(--face-scale, 1));
+  transform-origin: center center;
+  transition: transform 0.3s ease;
+}
+
+/* Dynamic scaling based on viewport */
+@media (min-width: 1200px) {
+  .face-wrapper {
+    --face-scale: 1.8;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
+  .face-wrapper {
+    --face-scale: 1.5;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 899px) {
+  .face-wrapper {
+    --face-scale: 1.2;
+  }
+}
+
+@media (max-width: 599px) {
+  .face-wrapper {
+    --face-scale: 0.9;
+  }
+}
+
+/* =============================================================================
+   STATUS INDICATOR
+   ============================================================================= */
+.facetime-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: all 0.3s ease;
+}
+
+/* Idle state - subtle pulse */
+.facetime-status.status-idle .status-dot {
+  background: var(--accent-cyan);
+  animation: idlePulse 3s ease-in-out infinite;
+}
+
+/* Talking state - active green */
+.facetime-status.status-talking {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.facetime-status.status-talking .status-dot {
+  background: var(--accent-emerald);
+  animation: activePulse 0.6s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--accent-emerald);
+}
+
+.facetime-status.status-talking .status-text {
+  color: var(--accent-emerald);
+}
+
+/* Thinking state - amber processing */
+.facetime-status.status-thinking {
+  border-color: var(--accent-amber);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.facetime-status.status-thinking .status-dot {
+  background: var(--accent-amber);
+  animation: thinkingPulse 1s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--accent-amber);
+}
+
+.facetime-status.status-thinking .status-text {
+  color: var(--accent-amber);
+}
+
+/* =============================================================================
+   ACTIVE TOOLS DISPLAY
+   ============================================================================= */
+.active-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 400px;
+}
+
+.tool-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 16px;
+  font-size: 0.8rem;
+  color: var(--accent-amber);
+  animation: toolFadeIn 0.2s ease-out;
+}
+
+.tool-badge .tool-icon {
+  font-size: 0.9rem;
+  animation: toolSpin 0.8s ease-in-out infinite;
+}
+
+.tool-badge .tool-name {
+  font-weight: 500;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   AMBIENT GLOW EFFECT
+   ============================================================================= */
+.ambient-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+  transition: all 0.5s ease;
+  filter: blur(80px);
+}
+
+/* Idle glow - soft cyan */
+.ambient-glow[data-state="idle"] {
+  background: radial-gradient(
+    circle,
+    rgba(6, 182, 212, 0.3) 0%,
+    transparent 70%
+  );
+  animation: glowBreath 4s ease-in-out infinite;
+}
+
+/* Talking glow - warm pink matching face */
+.ambient-glow[data-state="talking"] {
+  background: radial-gradient(
+    circle,
+    rgba(255, 138, 155, 0.4) 0%,
+    rgba(16, 185, 129, 0.2) 50%,
+    transparent 70%
+  );
+  animation: glowPulse 0.8s ease-in-out infinite;
+}
+
+/* Thinking glow - amber/purple */
+.ambient-glow[data-state="thinking"] {
+  background: radial-gradient(
+    circle,
+    rgba(245, 158, 11, 0.3) 0%,
+    rgba(139, 92, 246, 0.2) 50%,
+    transparent 70%
+  );
+  animation: glowThink 2s ease-in-out infinite;
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+/* Status dot animations */
+@keyframes idlePulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes activePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes thinkingPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* Tool animations */
+@keyframes toolFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toolSpin {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-15deg);
+  }
+  75% {
+    transform: rotate(15deg);
+  }
+}
+
+/* Ambient glow animations */
+@keyframes glowBreath {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.5;
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+@keyframes glowThink {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(5deg);
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================= */
+@media (max-width: 599px) {
+  .facetime-status {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+  }
+  
+  .status-dot {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .active-tools {
+    max-width: 280px;
+  }
+  
+  .tool-badge {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+  
+  .ambient-glow {
+    width: 400px;
+    height: 400px;
+  }
+}
+
+/* =============================================================================
+   DARK THEME ENHANCEMENTS
+   ============================================================================= */
+.facetime-view::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(139, 92, 246, 0.05) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 0% 100%,
+      rgba(6, 182, 212, 0.03) 0%,
+      transparent 40%
+    ),
+    radial-gradient(
+      ellipse at 100% 100%,
+      rgba(245, 158, 11, 0.03) 0%,
+      transparent 40%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+

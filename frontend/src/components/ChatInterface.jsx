@@ -3,7 +3,16 @@ import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import './ChatInterface.css';
 
-export default function ChatInterface({ conversationId, initialMessages, initialUsage, onConversationChange, onMessageSent, onProcessingChange }) {
+export default function ChatInterface({ 
+  conversationId, 
+  initialMessages, 
+  initialUsage, 
+  onConversationChange, 
+  onMessageSent, 
+  onProcessingChange,
+  onStreamingStateChange,
+  onToolCallsUpdate
+}) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -11,6 +20,7 @@ export default function ChatInterface({ conversationId, initialMessages, initial
   const [currentConversationId, setCurrentConversationId] = useState(conversationId);
   const [usage, setUsage] = useState(null);
   const messagesEndRef = useRef(null);
+  const idleTimeoutRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,6 +53,33 @@ export default function ChatInterface({ conversationId, initialMessages, initial
     }
   }, [conversationId]);
 
+  // Cleanup idle timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (idleTimeoutRef.current) {
+        clearTimeout(idleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Helper to update streaming state with debounced idle transition
+  const updateStreamingState = (status) => {
+    // Clear any pending idle timeout
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+
+    if (status === 'idle') {
+      // Delay idle transition to prevent flicker
+      idleTimeoutRef.current = setTimeout(() => {
+        onStreamingStateChange?.('idle');
+      }, 2000);
+    } else {
+      onStreamingStateChange?.(status);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -66,6 +103,9 @@ export default function ChatInterface({ conversationId, initialMessages, initial
 
     setLoading(true);
     onProcessingChange?.(true);
+
+    // Track active tool calls for face animation
+    let activeToolCalls = [];
 
     try {
       // Create new conversation if none exists
@@ -98,6 +138,9 @@ export default function ChatInterface({ conversationId, initialMessages, initial
         convId,
         // onChunk - called for each content piece
         (content) => {
+          // Switch to talking state when receiving content
+          updateStreamingState('talking');
+          
           setMessages(prev => {
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
@@ -111,6 +154,34 @@ export default function ChatInterface({ conversationId, initialMessages, initial
         },
         // onToolCall - called when tool is used
         (toolCall) => {
+          // Switch to thinking state when tool is called
+          updateStreamingState('thinking');
+          
+          // Update active tool calls for face animation
+          const existingIndex = activeToolCalls.findIndex(
+            t => t.toolName === toolCall.toolName && t.status !== 'completed' && t.status !== 'failed'
+          );
+          
+          if (existingIndex >= 0) {
+            activeToolCalls[existingIndex] = toolCall;
+          } else {
+            activeToolCalls = [...activeToolCalls, toolCall];
+          }
+          
+          // Notify parent of tool calls update
+          onToolCallsUpdate?.(activeToolCalls);
+          
+          // If tool completed/failed, check if we should switch back to talking
+          if (toolCall.status === 'completed' || toolCall.status === 'failed') {
+            const stillExecuting = activeToolCalls.some(
+              t => t.status === 'executing' || t.status === 'starting'
+            );
+            if (!stillExecuting) {
+              // All tools done, switch back to talking (content will follow)
+              updateStreamingState('talking');
+            }
+          }
+          
           setMessages(prev => {
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
@@ -183,6 +254,11 @@ export default function ChatInterface({ conversationId, initialMessages, initial
         onMessageSent();
       }
 
+      // Clear tool calls and transition to idle after completion
+      activeToolCalls = [];
+      onToolCallsUpdate?.([]);
+      updateStreamingState('idle');
+
     } catch (err) {
       setError(err.message);
       setMessages(prev => {
@@ -195,6 +271,11 @@ export default function ChatInterface({ conversationId, initialMessages, initial
         };
         return updated;
       });
+      
+      // Reset to idle on error
+      activeToolCalls = [];
+      onToolCallsUpdate?.([]);
+      updateStreamingState('idle');
     } finally {
       setLoading(false);
       onProcessingChange?.(false);
