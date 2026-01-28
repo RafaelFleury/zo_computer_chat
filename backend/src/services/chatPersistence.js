@@ -8,6 +8,8 @@ class ChatPersistence {
     this.activeChatsFile = `${this.memoriesPath}/active_chats.json`;
     this.workspaceRoot = '/home/workspace';
     this.initialized = false;
+    // Mutex for active_chats.json to prevent race conditions
+    this.activeChatsLock = Promise.resolve();
   }
 
   // Validate path is within workspace for safety
@@ -16,6 +18,22 @@ class ChatPersistence {
       throw new Error(`Security violation: Path ${filePath} is outside workspace ${this.workspaceRoot}`);
     }
     return filePath;
+  }
+
+  // Acquire lock for active_chats.json operations to prevent race conditions
+  async withActiveChatsLock(operation) {
+    const previousLock = this.activeChatsLock;
+    let resolveLock;
+    this.activeChatsLock = new Promise(resolve => {
+      resolveLock = resolve;
+    });
+
+    try {
+      await previousLock;
+      return await operation();
+    } finally {
+      resolveLock();
+    }
   }
 
   // Initialize the chat persistence system
@@ -29,15 +47,17 @@ class ChatPersistence {
       this.validatePath(this.memoriesPath);
       this.validatePath(this.historyPath);
 
-      // Try to read active_chats.json
-      try {
-        const activeChats = await this.loadActiveChats();
-        logger.info(`Active chats file loaded: ${activeChats.chats?.length || 0} chats`);
-      } catch (error) {
-        // File doesn't exist, create fresh
-        logger.info('Active chats file not found, creating fresh system...');
-        await this.saveActiveChats({ chats: [], lastUpdated: new Date().toISOString() });
-      }
+      // Try to read active_chats.json with lock protection
+      await this.withActiveChatsLock(async () => {
+        try {
+          const activeChats = await this._loadActiveChatsUnsafe();
+          logger.info(`Active chats file loaded: ${activeChats.chats?.length || 0} chats`);
+        } catch (error) {
+          // File doesn't exist, create fresh
+          logger.info('Active chats file not found, creating fresh system...');
+          await this._saveActiveChatsUnsafe({ chats: [], lastUpdated: new Date().toISOString() });
+        }
+      });
 
       this.initialized = true;
       logger.info('Chat persistence system initialized');
@@ -52,8 +72,8 @@ class ChatPersistence {
     return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // Save active chats list
-  async saveActiveChats(activeChatsData) {
+  // Save active chats list (private - always use through lock)
+  async _saveActiveChatsUnsafe(activeChatsData) {
     try {
       this.validatePath(this.activeChatsFile);
 
@@ -71,8 +91,8 @@ class ChatPersistence {
     }
   }
 
-  // Load active chats list
-  async loadActiveChats() {
+  // Load active chats list (private - always use through lock)
+  async _loadActiveChatsUnsafe() {
     try {
       this.validatePath(this.activeChatsFile);
 
@@ -124,39 +144,43 @@ class ChatPersistence {
     }
   }
 
-  // Add chat to active list
+  // Add chat to active list (with lock protection)
   async addToActiveChats(conversationId) {
-    try {
-      const activeChats = await this.loadActiveChats();
+    return this.withActiveChatsLock(async () => {
+      try {
+        const activeChats = await this._loadActiveChatsUnsafe();
 
-      if (!activeChats.chats.includes(conversationId)) {
-        activeChats.chats.push(conversationId);
-        activeChats.lastUpdated = new Date().toISOString();
-        await this.saveActiveChats(activeChats);
-        logger.info(`Added ${conversationId} to active chats`);
+        if (!activeChats.chats.includes(conversationId)) {
+          activeChats.chats.push(conversationId);
+          activeChats.lastUpdated = new Date().toISOString();
+          await this._saveActiveChatsUnsafe(activeChats);
+          logger.info(`Added ${conversationId} to active chats`);
+        }
+      } catch (error) {
+        logger.error(`Failed to add ${conversationId} to active chats:`, error);
+        throw error;
       }
-    } catch (error) {
-      logger.error(`Failed to add ${conversationId} to active chats:`, error);
-      throw error;
-    }
+    });
   }
 
-  // Remove chat from active list
+  // Remove chat from active list (with lock protection)
   async removeFromActiveChats(conversationId) {
-    try {
-      const activeChats = await this.loadActiveChats();
+    return this.withActiveChatsLock(async () => {
+      try {
+        const activeChats = await this._loadActiveChatsUnsafe();
 
-      const index = activeChats.chats.indexOf(conversationId);
-      if (index > -1) {
-        activeChats.chats.splice(index, 1);
-        activeChats.lastUpdated = new Date().toISOString();
-        await this.saveActiveChats(activeChats);
-        logger.info(`Removed ${conversationId} from active chats`);
+        const index = activeChats.chats.indexOf(conversationId);
+        if (index > -1) {
+          activeChats.chats.splice(index, 1);
+          activeChats.lastUpdated = new Date().toISOString();
+          await this._saveActiveChatsUnsafe(activeChats);
+          logger.info(`Removed ${conversationId} from active chats`);
+        }
+      } catch (error) {
+        logger.error(`Failed to remove ${conversationId} from active chats:`, error);
+        throw error;
       }
-    } catch (error) {
-      logger.error(`Failed to remove ${conversationId} from active chats:`, error);
-      throw error;
-    }
+    });
   }
 
   // Save conversation to Zo filesystem as JSON
@@ -218,8 +242,10 @@ class ChatPersistence {
 
       logger.info('Listing active conversations from Zo');
 
-      // Load active chats list
-      const activeChats = await this.loadActiveChats();
+      // Load active chats list with lock protection
+      const activeChats = await this.withActiveChatsLock(async () => {
+        return await this._loadActiveChatsUnsafe();
+      });
 
       if (!activeChats.chats || activeChats.chats.length === 0) {
         logger.info('No active conversations found');
