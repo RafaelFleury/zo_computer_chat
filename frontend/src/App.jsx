@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import ChatInterface from "./components/ChatInterface";
 import LogsViewer from "./components/LogsViewer";
 import ChatHistory from "./components/ChatHistory";
@@ -17,6 +17,7 @@ function App() {
   const [usage, setUsage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [authEnabled, setAuthEnabled] = useState(true);
   const chatHistoryRef = useRef(null);
   const chatInterfaceRef = useRef(null);
 
@@ -26,6 +27,20 @@ function App() {
     lastUpdate: Date.now(),
   });
   const [currentToolCalls, setCurrentToolCalls] = useState([]);
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/health`);
+        const data = await response.json();
+        setAuthEnabled(data.authEnabled ?? true);
+      } catch (error) {
+        console.error('Failed to check auth status:', error);
+      }
+    };
+    checkAuthStatus();
+  }, []);
 
   // Refresh chat history (called after message sent or conversation deleted)
   const refreshChatHistory = () => {
@@ -88,6 +103,20 @@ function App() {
   return (
     <div className={`app ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
       <Toast />
+
+      {/* Security Warning Banner */}
+      {!authEnabled && (
+        <div className="security-warning-banner">
+          <div className="security-warning-content">
+            <span className="warning-icon">⚠️</span>
+            <span className="warning-text">
+              <strong>WARNING:</strong> Authentication is DISABLED! This application is not secure for public access.
+              Set AUTH_PASSWORD in backend/.env to enable authentication.
+            </span>
+          </div>
+        </div>
+      )}
+
       <ChatHistory
         ref={chatHistoryRef}
         currentConversationId={conversationId}

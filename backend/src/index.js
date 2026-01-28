@@ -21,12 +21,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Authentication middleware (only if AUTH_PASSWORD is set)
-if (process.env.AUTH_PASSWORD) {
+// Authentication middleware (only if AUTH_PASSWORD is set and not empty)
+const authPassword = process.env.AUTH_PASSWORD?.trim();
+if (authPassword && authPassword.length > 0) {
   const authUsername = process.env.AUTH_USERNAME || 'admin';
-  const authPassword = process.env.AUTH_PASSWORD;
 
   logger.info('🔒 Authentication enabled');
+  logger.info(`   Username: ${authUsername}`);
 
   app.use(basicAuth({
     users: { [authUsername]: authPassword },
@@ -38,7 +39,11 @@ if (process.env.AUTH_PASSWORD) {
     }
   }));
 } else {
-  logger.warn('⚠️  Authentication is DISABLED. Set AUTH_PASSWORD in .env to enable.');
+  logger.warn('⚠️  ========================================');
+  logger.warn('⚠️  WARNING: Authentication is DISABLED!');
+  logger.warn('⚠️  Set AUTH_PASSWORD in .env to enable.');
+  logger.warn('⚠️  NOT SAFE for public deployment!');
+  logger.warn('⚠️  ========================================');
 }
 
 // Middleware
@@ -59,6 +64,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     mcpConnected: zoMCP.isConnected,
+    authEnabled: !!(authPassword && authPassword.length > 0),
     timestamp: new Date().toISOString()
   });
 });
