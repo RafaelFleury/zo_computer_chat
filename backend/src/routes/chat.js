@@ -94,7 +94,8 @@ router.post('/', async (req, res) => {
     try {
       await chatPersistence.saveConversation(conversationId, conversation, {
         createdAt: Date.now(),
-        lastMessageAt: Date.now()
+        lastMessageAt: Date.now(),
+        contextUsage: response.usage
       });
       logger.info(`Conversation auto-saved: ${conversationId}`);
     } catch (saveError) {
@@ -194,14 +195,24 @@ router.post('/stream', async (req, res) => {
       conversationId,
       message: result.message,
       streaming: true,
-      toolCalls: toolCalls.length
+      toolCalls: toolCalls.length,
+      usage: result.usage
     });
+
+    // Send usage info before done event
+    if (result.usage) {
+      res.write(`data: ${JSON.stringify({
+        type: 'usage',
+        usage: result.usage
+      })}\n\n`);
+    }
 
     // Auto-save conversation to Zo filesystem
     try {
       await chatPersistence.saveConversation(conversationId, conversation, {
         createdAt: Date.now(),
-        lastMessageAt: Date.now()
+        lastMessageAt: Date.now(),
+        contextUsage: result.usage
       });
       logger.info(`Conversation auto-saved: ${conversationId}`);
     } catch (saveError) {
@@ -305,7 +316,7 @@ router.get('/history', async (req, res) => {
 router.get('/history/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const messages = await chatPersistence.loadConversation(id);
+    const { messages, metadata } = await chatPersistence.loadConversation(id);
 
     // Normalize messages to ensure proper format for both LLM and frontend
     const normalizedMessages = messages.map(msg => {
@@ -361,7 +372,11 @@ router.get('/history/:id', async (req, res) => {
       }
     });
 
-    res.json({ id, messages: normalizedMessages });
+    res.json({
+      id,
+      messages: normalizedMessages,
+      usage: metadata.contextUsage || null
+    });
   } catch (error) {
     logger.error('Failed to load conversation:', error);
     res.status(404).json({ error: 'Conversation not found' });

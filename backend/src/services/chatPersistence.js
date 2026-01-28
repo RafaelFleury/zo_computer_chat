@@ -169,13 +169,23 @@ class ChatPersistence {
       // Validate path is within workspace
       this.validatePath(filePath);
 
+      // Try to load existing conversation to preserve metadata like createdAt
+      let existingMetadata = {};
+      try {
+        const existing = await this.loadConversation(conversationId);
+        existingMetadata = existing.metadata || {};
+      } catch (error) {
+        // File doesn't exist yet, that's fine
+      }
+
       const conversationData = {
         id: conversationId,
         messages,
         metadata: {
-          createdAt: metadata.createdAt || new Date().toISOString(),
+          createdAt: existingMetadata.createdAt || metadata.createdAt || new Date().toISOString(),
           lastMessageAt: metadata.lastMessageAt || new Date().toISOString(),
-          messageCount: messages.length
+          messageCount: messages.length,
+          contextUsage: metadata.contextUsage || existingMetadata.contextUsage || null
         }
       };
 
@@ -315,7 +325,10 @@ class ChatPersistence {
       }
 
       logger.info(`Conversation loaded: ${conversationId} (${conversationData.messages?.length || 0} messages)`);
-      return conversationData.messages || [];
+      return {
+        messages: conversationData.messages || [],
+        metadata: conversationData.metadata || {}
+      };
     } catch (error) {
       logger.error(`Failed to load conversation ${conversationId}:`, error);
       throw error;

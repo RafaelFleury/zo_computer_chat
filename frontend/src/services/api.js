@@ -18,7 +18,7 @@ export const api = {
     return response.json();
   },
 
-  async streamMessage(message, conversationId = 'default', onChunk, onToolCall) {
+  async streamMessage(message, conversationId = 'default', onChunk, onToolCall, onUsage) {
     // Note: Using fetch with ReadableStream instead of EventSource for POST support
     const response = await fetch(`${API_URL}/api/chat/stream`, {
       method: 'POST',
@@ -53,6 +53,8 @@ export const api = {
             onChunk?.(data.content);
           } else if (data.type === 'tool_call') {
             onToolCall?.(data);
+          } else if (data.type === 'usage') {
+            onUsage?.(data.usage);
           } else if (data.type === 'done') {
             return;
           } else if (data.type === 'error') {

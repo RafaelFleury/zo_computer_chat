@@ -3,12 +3,13 @@ import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import './ChatInterface.css';
 
-export default function ChatInterface({ conversationId, initialMessages, onConversationChange, onMessageSent, onProcessingChange }) {
+export default function ChatInterface({ conversationId, initialMessages, initialUsage, onConversationChange, onMessageSent, onProcessingChange }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [currentConversationId, setCurrentConversationId] = useState(conversationId);
+  const [usage, setUsage] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -26,6 +27,13 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
       setMessages(initialMessages);
     }
   }, [initialMessages]);
+
+  // Update usage when initialUsage changes
+  useEffect(() => {
+    if (initialUsage !== undefined) {
+      setUsage(initialUsage);
+    }
+  }, [initialUsage]);
 
   // Update conversationId when prop changes
   useEffect(() => {
@@ -148,6 +156,10 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
             };
             return updated;
           });
+        },
+        // onUsage - called when usage info is received
+        (usageData) => {
+          setUsage(usageData);
         }
       );
 
@@ -277,6 +289,19 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
         <button type="submit" disabled={loading || !input.trim()} className="send-button">
           <span>{loading ? 'Sending...' : 'Send'}</span>
         </button>
+        {usage && (
+          <div className="context-footer">
+            <span className="context-stat">
+              Context: {usage.prompt_tokens?.toLocaleString() || 0} tokens
+            </span>
+            <span className="context-stat">
+              Completion: {usage.completion_tokens?.toLocaleString() || 0} tokens
+            </span>
+            <span className="context-stat">
+              Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
+            </span>
+          </div>
+        )}
       </form>
     </div>
   );

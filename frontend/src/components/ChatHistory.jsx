@@ -87,7 +87,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
       const data = await response.json();
 
       if (data.messages) {
-        onSelectConversation(conversationId, data.messages);
+        onSelectConversation(conversationId, data.messages, data.usage);
       }
     } catch (err) {
       console.error('Failed to load conversation:', err);

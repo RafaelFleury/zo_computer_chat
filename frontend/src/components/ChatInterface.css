@@ -352,6 +352,7 @@
 
 .input-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   padding: 1.5rem 2rem;
   border-top: 1px solid var(--border-color);
@@ -421,6 +422,24 @@
 
 .send-button:hover:not(:disabled)::after {
   transform: translateX(4px);
+}
+
+.context-footer {
+  display: flex;
+  gap: 1.5rem;
+  width: 100%;
+  padding: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+.context-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
 }
 
 /* Responsive */

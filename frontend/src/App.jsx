@@ -9,6 +9,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [usage, setUsage] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const chatHistoryRef = useRef(null);
@@ -29,6 +30,7 @@ function App() {
       console.log('New conversation created:', data.conversationId);
       setConversationId(data.conversationId);
       setMessages([]);
+      setUsage(null);
     } catch (err) {
       console.error('Failed to create new conversation:', err);
       alert(`Failed to create new conversation: ${err.message}`);
@@ -36,9 +38,10 @@ function App() {
   };
 
   // Select existing conversation
-  const handleSelectConversation = (id, loadedMessages) => {
+  const handleSelectConversation = (id, loadedMessages, loadedUsage) => {
     setConversationId(id);
     setMessages(loadedMessages);
+    setUsage(loadedUsage);
   };
 
   return (
@@ -72,6 +75,7 @@ function App() {
           <ChatInterface
             conversationId={conversationId}
             initialMessages={messages}
+            initialUsage={usage}
             onConversationChange={(id) => setConversationId(id)}
             onMessageSent={refreshChatHistory}
             onProcessingChange={setIsProcessing}

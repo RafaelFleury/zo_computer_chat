@@ -145,15 +145,22 @@ class LLMClient {
         messages: messages,
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: tools.length > 0 ? 'auto' : undefined,
-        stream: true
+        stream: true,
+        stream_options: { include_usage: true }
       });
 
       let fullMessage = '';
       let toolCalls = [];
+      let usage = null;
       const notifiedTools = new Set(); // Track which tools we've already notified about
 
       for await (const chunk of stream) {
         const delta = chunk.choices[0]?.delta;
+
+        // Capture usage from final chunk
+        if (chunk.usage) {
+          usage = chunk.usage;
+        }
 
         if (delta?.content) {
           fullMessage += delta.content;
@@ -267,7 +274,7 @@ class LLMClient {
         return await this.streamChat(updatedMessages, onChunk, onToolCall);
       }
 
-      return { message: fullMessage };
+      return { message: fullMessage, usage };
 
     } catch (error) {
       logger.error('Streaming chat failed:', error);
