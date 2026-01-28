@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import './ChatInterface.css';
 
-export default function ChatInterface({ conversationId, initialMessages, onConversationChange, onMessageSent }) {
+export default function ChatInterface({ conversationId, initialMessages, onConversationChange, onMessageSent, onProcessingChange }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,6 +57,7 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
     }]);
 
     setLoading(true);
+    onProcessingChange?.(true);
 
     try {
       // Create new conversation if none exists
@@ -184,6 +185,7 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
       });
     } finally {
       setLoading(false);
+      onProcessingChange?.(false);
     }
   };
 

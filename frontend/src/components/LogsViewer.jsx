@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import './LogsViewer.css';
 
-export default function LogsViewer() {
+export default function LogsViewer({ isProcessing = false }) {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const fetchLogs = async () => {
     try {
@@ -22,11 +22,12 @@ export default function LogsViewer() {
   }, [filter]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    // Only poll if processing OR auto-refresh is manually enabled
+    if (!autoRefresh && !isProcessing) return;
 
     const interval = setInterval(fetchLogs, 2000);
     return () => clearInterval(interval);
-  }, [autoRefresh, filter]);
+  }, [autoRefresh, isProcessing, filter]);
 
   const handleClearLogs = async () => {
     if (confirm('Are you sure you want to clear all logs?')) {

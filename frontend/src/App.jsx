@@ -9,6 +9,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const chatHistoryRef = useRef(null);
 
   // Refresh chat history (called after message sent or conversation deleted)
@@ -71,10 +72,11 @@ function App() {
             initialMessages={messages}
             onConversationChange={(id) => setConversationId(id)}
             onMessageSent={refreshChatHistory}
+            onProcessingChange={setIsProcessing}
           />
         </div>
         <div className={activeTab === 'logs' ? 'tab-panel active' : 'tab-panel'}>
-          <LogsViewer />
+          <LogsViewer isProcessing={isProcessing} />
         </div>
       </div>
     </div>
