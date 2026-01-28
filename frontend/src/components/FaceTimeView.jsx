@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import PixelFace from './PixelFace';
 import './FaceTimeView.css';
 
@@ -11,9 +11,42 @@ export default function FaceTimeView({
   currentToolCalls = [],
   conversationId 
 }) {
+  const [isSleeping, setIsSleeping] = useState(false);
+  const sleepTimerRef = useRef(null);
+
+  // Handle sleep timer - sleep after 10 seconds of idle
+  useEffect(() => {
+    // Clear any existing timer
+    if (sleepTimerRef.current) {
+      clearTimeout(sleepTimerRef.current);
+      sleepTimerRef.current = null;
+    }
+
+    // If idle, start the sleep timer
+    if (streamingState.status === 'idle') {
+      setIsSleeping(false); // Reset to awake first
+      sleepTimerRef.current = setTimeout(() => {
+        setIsSleeping(true);
+      }, 10000); // 10 seconds
+    } else {
+      // If not idle, wake up immediately
+      setIsSleeping(false);
+    }
+
+    return () => {
+      if (sleepTimerRef.current) {
+        clearTimeout(sleepTimerRef.current);
+      }
+    };
+  }, [streamingState.status, streamingState.lastUpdate]);
+
+  // Determine animation state based on streaming state and sleep
   const animationState = useMemo(() => {
+    if (streamingState.status === 'idle' && isSleeping) {
+      return 'sleeping';
+    }
     return streamingState.status || 'idle';
-  }, [streamingState.status]);
+  }, [streamingState.status, isSleeping]);
 
   const statusMessage = useMemo(() => {
     if (streamingState.status === 'thinking' && currentToolCalls.length > 0) {
@@ -28,16 +61,23 @@ export default function FaceTimeView({
       return 'Speaking...';
     }
     
+    if (isSleeping) {
+      return 'Sleeping...';
+    }
+    
     return conversationId ? 'Listening...' : 'Waiting...';
-  }, [streamingState.status, currentToolCalls, conversationId]);
+  }, [streamingState.status, currentToolCalls, conversationId, isSleeping]);
 
   const statusClass = useMemo(() => {
+    if (isSleeping && streamingState.status === 'idle') {
+      return 'status-sleeping';
+    }
     switch (streamingState.status) {
       case 'talking': return 'status-talking';
       case 'thinking': return 'status-thinking';
       default: return 'status-idle';
     }
-  }, [streamingState.status]);
+  }, [streamingState.status, isSleeping]);
 
   return (
     <div className="facetime-view">

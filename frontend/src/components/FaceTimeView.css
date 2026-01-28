@@ -113,6 +113,22 @@
   animation: idlePulse 4s ease-in-out infinite;
 }
 
+/* Sleeping state */
+.facetime-status.status-sleeping {
+  border-color: var(--accent-purple);
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.facetime-status.status-sleeping .status-dot {
+  background: var(--accent-purple);
+  animation: sleepPulse 3s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--accent-purple);
+}
+
+.facetime-status.status-sleeping .status-text {
+  color: var(--accent-purple);
+}
+
 /* Talking state */
 .facetime-status.status-talking {
   border-color: var(--accent-emerald);
@@ -204,6 +220,15 @@
   animation: glowBreath 6s ease-in-out infinite;
 }
 
+.ambient-glow[data-state="sleeping"] {
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.2) 0%,
+    transparent 70%
+  );
+  animation: glowSleep 8s ease-in-out infinite;
+}
+
 .ambient-glow[data-state="talking"] {
   background: radial-gradient(
     circle,
@@ -235,6 +260,17 @@
   50% {
     opacity: 1;
     transform: scale(1.1);
+  }
+}
+
+@keyframes sleepPulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
   }
 }
 
@@ -279,6 +315,17 @@
   50% {
     transform: translate(-50%, -50%) scale(1.08);
     opacity: 0.35;
+  }
+}
+
+@keyframes glowSleep {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+    opacity: 0.3;
   }
 }
 

@@ -8,6 +8,7 @@ import './PixelFace.css';
  * - idle: Square eyes only, gentle breathing animation
  * - talking: Square eyes + animated mouth (opens/closes)
  * - thinking: Horizontal line eyes (squinting), eyes shift side to side
+ * - sleeping: Closed eyes (horizontal lines), very slow breathing
  */
 const PixelFace = memo(function PixelFace({ animationState = 'idle' }) {
   return (
