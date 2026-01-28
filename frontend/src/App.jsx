@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import ChatInterface from './components/ChatInterface';
 import LogsViewer from './components/LogsViewer';
 import ChatHistory from './components/ChatHistory';
+import Toast from './components/Toast';
 import './App.css';
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
 
   return (
     <div className="app">
+      <Toast />
       <ChatHistory
         ref={chatHistoryRef}
         currentConversationId={conversationId}

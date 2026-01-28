@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { showToast } from './Toast';
 import './ChatHistory.css';
 
 const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation }, ref) => {
@@ -31,6 +32,12 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
       return;
     }
 
+    // Store backup for rollback
+    const backup = [...conversations];
+
+    // Optimistic update - remove immediately from UI
+    setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+
     try {
       console.log('Deleting conversation:', conversationId);
       const response = await fetch(`http://localhost:3001/api/chat/history/${conversationId}`, {
@@ -41,8 +48,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
 
       if (response.ok) {
         console.log('Conversation deleted successfully');
-        // Reload list
-        await loadConversations();
+        showToast('Conversation deleted', 'success');
 
         // If deleted conversation was active, create new one
         if (conversationId === currentConversationId) {
@@ -51,11 +57,17 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
       } else {
         const errorData = await response.json();
         console.error('Delete failed:', errorData);
-        alert(`Failed to delete conversation: ${errorData.error || 'Unknown error'}`);
+
+        // Rollback on failure
+        setConversations(backup);
+        showToast(`Failed to delete: ${errorData.error || 'Unknown error'}`, 'error');
       }
     } catch (err) {
       console.error('Failed to delete conversation:', err);
-      alert(`Failed to delete conversation: ${err.message}`);
+
+      // Rollback on error
+      setConversations(backup);
+      showToast(`Failed to delete: ${err.message}`, 'error');
     }
   };
 
