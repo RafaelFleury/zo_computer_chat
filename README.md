@@ -122,7 +122,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 | `ZO_API_KEY` | ✅ Yes | - | API key from Zo Computer (get from Settings → API & MCP) |
 | `ZAI_API_KEY` | ✅ Yes | - | API key from Z.AI for LLM access |
 | `PORT` | No | `3001` | Server port number |
-| `NODE_ENV` | No | `development` | Environment mode (`development` or `production`) |
+| `NODE_ENV` | No | `development` | Environment mode: `development` (verbose logging, detailed errors) or `production` (optimized logging, sanitized errors). Change to `production` when deploying to staging/production servers. |
 | `MODEL_NAME` | No | `glm-4.7` | GLM model to use (see Available Models section) |
 | `ZO_MCP_URL` | No | `https://api.zo.computer/mcp` | Zo Computer MCP server endpoint |
 | `ZAI_API_URL` | No | `https://api.z.ai/api/coding/paas/v4` | Z.AI API endpoint for LLM requests |
@@ -134,6 +134,28 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 | `VITE_API_URL` | No | `http://localhost:3001` | Backend API base URL. Use `http://localhost:3001` for dev mode with separate servers. Leave empty or unset for production mode (same server). |
 
 **Note**: All URL configurations support environment variables, making it easy to deploy to different environments (development, staging, production) without code changes.
+
+### When to Use `NODE_ENV=production`
+
+The `NODE_ENV` variable affects **backend behavior**, not deployment mode (dev vs prod servers):
+
+#### Use `NODE_ENV=development` when:
+- ✅ Local development on your machine
+- ✅ Testing with `./start.sh` (dev mode)
+- ✅ Testing with `./start.sh --prod` (prod mode, but still local)
+- **Benefits**: Verbose logging, detailed error stack traces, easier debugging
+
+#### Use `NODE_ENV=production` when:
+- ✅ Deploying to a remote server (staging, production, cloud)
+- ✅ Running on Docker/Kubernetes
+- ✅ Any public-facing deployment
+- **Benefits**: Optimized logging, sanitized error messages (no stack traces to users), better performance
+
+**Important**: `NODE_ENV` is separate from dev/prod server modes:
+- `./start.sh` = Dev mode (separate servers) + `NODE_ENV` from `.env`
+- `./start.sh --prod` = Prod mode (unified server) + `NODE_ENV` from `.env`
+
+For local testing of production builds, keep `NODE_ENV=development` to get better error messages!
 
 ### Deployment Modes
 
