@@ -53,6 +53,10 @@ export default function FaceTimeView({
     if (streamingState.status === "idle" && isSleeping) {
       return "sleeping";
     }
+    // Treat "waiting" as "idle" for visuals, but keep it distinct for timers/status.
+    if (streamingState.status === "waiting") {
+      return "idle";
+    }
     return streamingState.status || "idle";
   }, [streamingState.status, isSleeping]);
 
@@ -65,6 +69,10 @@ export default function FaceTimeView({
         return `Thinking... (${activeTool.toolName})`;
       }
       return "Thinking...";
+    }
+
+    if (streamingState.status === "waiting") {
+      return "Waiting...";
     }
 
     if (streamingState.status === "talking") {

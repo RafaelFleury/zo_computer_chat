@@ -122,6 +122,10 @@ const ChatInterface = forwardRef(function ChatInterface(
     setInput("");
     setError(null);
 
+    // Immediately reflect that we're waiting for the assistant to respond.
+    // This prevents FaceTimeView from entering "sleep" while the request is in-flight.
+    updateStreamingState("waiting");
+
     // Add user message
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
