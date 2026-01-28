@@ -1,38 +1,72 @@
-import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { api } from '../services/api';
-import './ChatInterface.css';
+import {
+  useState,
+  useRef,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
+import ReactMarkdown from "react-markdown";
+import { api } from "../services/api";
+import "./ChatInterface.css";
 
-export default function ChatInterface({ 
-  conversationId, 
-  initialMessages, 
-  initialUsage, 
-  onConversationChange, 
-  onMessageSent, 
-  onProcessingChange,
-  onStreamingStateChange,
-  onToolCallsUpdate
-}) {
+const ChatInterface = forwardRef(function ChatInterface(
+  {
+    conversationId,
+    initialMessages,
+    initialUsage,
+    onConversationChange,
+    onMessageSent,
+    onProcessingChange,
+    onStreamingStateChange,
+    onToolCallsUpdate,
+    onMessagesUpdate,
+  },
+  ref,
+) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentConversationId, setCurrentConversationId] = useState(conversationId);
+  const [currentConversationId, setCurrentConversationId] =
+    useState(conversationId);
   const [usage, setUsage] = useState(null);
   const messagesEndRef = useRef(null);
   const idleTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Expose sendMessage method to parent via ref
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendMessage: (text) => {
+        if (text && !loading) {
+          setInput(text);
+          // Use setTimeout to ensure state is updated before submitting
+          setTimeout(() => {
+            inputRef.current?.form?.requestSubmit();
+          }, 0);
+        }
+      },
+    }),
+    [loading],
+  );
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Update messages when initialMessages change (including clearing)
+  // Notify parent when messages change (for FaceTimeView sync)
   useEffect(() => {
-    console.log('Initial messages changed:', initialMessages?.length);
+    onMessagesUpdate?.(messages);
+  }, [messages, onMessagesUpdate]);
+
+  // Update messages when initialMessages change (from conversation selection)
+  useEffect(() => {
+    console.log("Initial messages changed:", initialMessages?.length);
     if (initialMessages !== undefined) {
       setMessages(initialMessages);
     }
@@ -47,7 +81,7 @@ export default function ChatInterface({
 
   // Update conversationId when prop changes
   useEffect(() => {
-    console.log('Conversation ID changed:', conversationId);
+    console.log("Conversation ID changed:", conversationId);
     if (conversationId !== undefined) {
       setCurrentConversationId(conversationId);
     }
@@ -70,10 +104,10 @@ export default function ChatInterface({
       idleTimeoutRef.current = null;
     }
 
-    if (status === 'idle') {
+    if (status === "idle") {
       // Delay idle transition to prevent flicker
       idleTimeoutRef.current = setTimeout(() => {
-        onStreamingStateChange?.('idle');
+        onStreamingStateChange?.("idle");
       }, 2000);
     } else {
       onStreamingStateChange?.(status);
@@ -85,21 +119,24 @@ export default function ChatInterface({
     if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
-    setInput('');
+    setInput("");
     setError(null);
 
     // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     // Add placeholder for assistant message
     const assistantMessageIndex = messages.length + 1;
-    setMessages(prev => [...prev, {
-      role: 'assistant',
-      content: '',
-      loading: true,
-      toolCalls: [],
-      process: [] // Track process steps
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: "",
+        loading: true,
+        toolCalls: [],
+        process: [], // Track process steps
+      },
+    ]);
 
     setLoading(true);
     onProcessingChange?.(true);
@@ -111,9 +148,12 @@ export default function ChatInterface({
       // Create new conversation if none exists
       let convId = currentConversationId;
       if (!convId) {
-        const newConvResponse = await fetch('http://localhost:3001/api/chat/history/new', {
-          method: 'POST'
-        });
+        const newConvResponse = await fetch(
+          "http://localhost:3001/api/chat/history/new",
+          {
+            method: "POST",
+          },
+        );
         const newConvData = await newConvResponse.json();
         convId = newConvData.conversationId;
         setCurrentConversationId(convId);
@@ -123,11 +163,11 @@ export default function ChatInterface({
       }
 
       // Add "Request received" step
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev];
         updated[assistantMessageIndex] = {
           ...updated[assistantMessageIndex],
-          process: [{ step: 'Request received', timestamp: Date.now() }]
+          process: [{ step: "Request received", timestamp: Date.now() }],
         };
         return updated;
       });
@@ -139,15 +179,15 @@ export default function ChatInterface({
         // onChunk - called for each content piece
         (content) => {
           // Switch to talking state when receiving content
-          updateStreamingState('talking');
-          
-          setMessages(prev => {
+          updateStreamingState("talking");
+
+          setMessages((prev) => {
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
             updated[assistantMessageIndex] = {
               ...current,
               content: current.content + content,
-              loading: false
+              loading: false,
             };
             return updated;
           });
@@ -155,40 +195,46 @@ export default function ChatInterface({
         // onToolCall - called when tool is used
         (toolCall) => {
           // Switch to thinking state when tool is called
-          updateStreamingState('thinking');
-          
+          updateStreamingState("thinking");
+
           // Update active tool calls for face animation
           const existingIndex = activeToolCalls.findIndex(
-            t => t.toolName === toolCall.toolName && t.status !== 'completed' && t.status !== 'failed'
+            (t) =>
+              t.toolName === toolCall.toolName &&
+              t.status !== "completed" &&
+              t.status !== "failed",
           );
-          
+
           if (existingIndex >= 0) {
             activeToolCalls[existingIndex] = toolCall;
           } else {
             activeToolCalls = [...activeToolCalls, toolCall];
           }
-          
+
           // Notify parent of tool calls update
           onToolCallsUpdate?.(activeToolCalls);
-          
+
           // If tool completed/failed, check if we should switch back to talking
-          if (toolCall.status === 'completed' || toolCall.status === 'failed') {
+          if (toolCall.status === "completed" || toolCall.status === "failed") {
             const stillExecuting = activeToolCalls.some(
-              t => t.status === 'executing' || t.status === 'starting'
+              (t) => t.status === "executing" || t.status === "starting",
             );
             if (!stillExecuting) {
               // All tools done, switch back to talking (content will follow)
-              updateStreamingState('talking');
+              updateStreamingState("talking");
             }
           }
-          
-          setMessages(prev => {
+
+          setMessages((prev) => {
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
 
             // Find if this tool call already exists (update status)
             const existingToolIndex = current.toolCalls?.findIndex(
-              t => t.toolName === toolCall.toolName && t.status !== 'completed' && t.status !== 'failed'
+              (t) =>
+                t.toolName === toolCall.toolName &&
+                t.status !== "completed" &&
+                t.status !== "failed",
             );
 
             let newToolCalls;
@@ -203,27 +249,27 @@ export default function ChatInterface({
 
             // Add process step based on status
             let processSteps = [...(current.process || [])];
-            if (toolCall.status === 'starting') {
+            if (toolCall.status === "starting") {
               processSteps.push({
                 step: `Calling tool: ${toolCall.toolName}`,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
-            } else if (toolCall.status === 'completed') {
+            } else if (toolCall.status === "completed") {
               processSteps.push({
                 step: `Tool ${toolCall.toolName} completed`,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
-            } else if (toolCall.status === 'failed') {
+            } else if (toolCall.status === "failed") {
               processSteps.push({
                 step: `Tool ${toolCall.toolName} failed`,
-                timestamp: Date.now()
+                timestamp: Date.now(),
               });
             }
 
             updated[assistantMessageIndex] = {
               ...current,
               toolCalls: newToolCalls,
-              process: processSteps
+              process: processSteps,
             };
             return updated;
           });
@@ -231,20 +277,23 @@ export default function ChatInterface({
         // onUsage - called when usage info is received
         (usageData) => {
           setUsage(usageData);
-        }
+        },
       );
 
       // Add "Response complete" step
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev];
         const current = updated[assistantMessageIndex];
         updated[assistantMessageIndex] = {
           ...current,
           loading: false,
-          process: [...(current.process || []), {
-            step: 'Response complete',
-            timestamp: Date.now()
-          }]
+          process: [
+            ...(current.process || []),
+            {
+              step: "Response complete",
+              timestamp: Date.now(),
+            },
+          ],
         };
         return updated;
       });
@@ -257,25 +306,24 @@ export default function ChatInterface({
       // Clear tool calls and transition to idle after completion
       activeToolCalls = [];
       onToolCallsUpdate?.([]);
-      updateStreamingState('idle');
-
+      updateStreamingState("idle");
     } catch (err) {
       setError(err.message);
-      setMessages(prev => {
+      setMessages((prev) => {
         const updated = [...prev];
         updated[assistantMessageIndex] = {
-          role: 'assistant',
+          role: "assistant",
           content: `Error: ${err.message}`,
           loading: false,
-          error: true
+          error: true,
         };
         return updated;
       });
-      
+
       // Reset to idle on error
       activeToolCalls = [];
       onToolCallsUpdate?.([]);
-      updateStreamingState('idle');
+      updateStreamingState("idle");
     } finally {
       setLoading(false);
       onProcessingChange?.(false);
@@ -293,44 +341,51 @@ export default function ChatInterface({
         {messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role}`}>
             <div className="message-role">
-              {msg.role === 'user' ? '👤 You' : '🤖 Assistant'}
+              {msg.role === "user" ? "👤 You" : "🤖 Assistant"}
             </div>
             <div className="message-content">
               {/* Show process steps for assistant messages */}
-              {msg.role === 'assistant' && msg.process && msg.process.length > 0 && (
-                <div className="process-timeline">
-                  {msg.process.map((step, i) => (
-                    <div key={i} className="process-step">
-                      <span className="step-indicator">›</span>
-                      <span className="step-text">{step.step}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {msg.role === "assistant" &&
+                msg.process &&
+                msg.process.length > 0 && (
+                  <div className="process-timeline">
+                    {msg.process.map((step, i) => (
+                      <div key={i} className="process-step">
+                        <span className="step-indicator">›</span>
+                        <span className="step-text">{step.step}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
               {/* Show tool calls as they happen */}
-              {msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="tool-calls-live">
-                  {msg.toolCalls.map((tool, i) => (
-                    <div key={i} className={`tool-call-item ${tool.status || ''}`}>
-                      <span className="tool-icon">🔧</span>
-                      <span className="tool-name">{tool.toolName}</span>
-                      {tool.status === 'starting' && (
-                        <span className="tool-status starting">⋯</span>
-                      )}
-                      {tool.status === 'executing' && (
-                        <span className="tool-status executing">⏳</span>
-                      )}
-                      {tool.status === 'completed' && (
-                        <span className="tool-status success">✓</span>
-                      )}
-                      {tool.status === 'failed' && (
-                        <span className="tool-status failure">✗</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              {msg.role === "assistant" &&
+                msg.toolCalls &&
+                msg.toolCalls.length > 0 && (
+                  <div className="tool-calls-live">
+                    {msg.toolCalls.map((tool, i) => (
+                      <div
+                        key={i}
+                        className={`tool-call-item ${tool.status || ""}`}
+                      >
+                        <span className="tool-icon">🔧</span>
+                        <span className="tool-name">{tool.toolName}</span>
+                        {tool.status === "starting" && (
+                          <span className="tool-status starting">⋯</span>
+                        )}
+                        {tool.status === "executing" && (
+                          <span className="tool-status executing">⏳</span>
+                        )}
+                        {tool.status === "completed" && (
+                          <span className="tool-status success">✓</span>
+                        )}
+                        {tool.status === "failed" && (
+                          <span className="tool-status failure">✗</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
               {/* Main content */}
               {msg.loading && !msg.content ? (
@@ -352,14 +407,11 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {error && (
-        <div className="error-banner">
-          {error}
-        </div>
-      )}
+      {error && <div className="error-banner">{error}</div>}
 
       <form onSubmit={handleSubmit} className="input-form">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -367,8 +419,12 @@ export default function ChatInterface({
           disabled={loading}
           className="message-input"
         />
-        <button type="submit" disabled={loading || !input.trim()} className="send-button">
-          <span>{loading ? 'Sending...' : 'Send'}</span>
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className="send-button"
+        >
+          <span>{loading ? "Sending..." : "Send"}</span>
         </button>
         {usage && (
           <div className="context-footer">
@@ -376,7 +432,8 @@ export default function ChatInterface({
               Context: {usage.prompt_tokens?.toLocaleString() || 0} tokens
             </span>
             <span className="context-stat">
-              Completion: {usage.completion_tokens?.toLocaleString() || 0} tokens
+              Completion: {usage.completion_tokens?.toLocaleString() || 0}{" "}
+              tokens
             </span>
             <span className="context-stat">
               Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
@@ -386,4 +443,6 @@ export default function ChatInterface({
       </form>
     </div>
   );
-}
+});
+
+export default ChatInterface;

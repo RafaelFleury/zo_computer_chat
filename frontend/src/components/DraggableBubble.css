@@ -1,0 +1,24 @@
+/* DraggableBubble.css - Styles for draggable container */
+
+.draggable-bubble {
+  position: absolute;
+  z-index: 100;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.draggable-bubble:hover {
+  z-index: 101;
+}
+
+.draggable-bubble.dragging {
+  cursor: grabbing;
+  z-index: 200;
+  /* No transition while dragging - follow mouse immediately */
+}
+
+/* Prevent text selection while dragging */
+.draggable-bubble.dragging * {
+  user-select: none;
+}
