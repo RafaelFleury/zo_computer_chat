@@ -1,7 +1,7 @@
-/* PixelFace.css - Simple, natural animations for the cute pixel face */
+/* PixelFace.css - Natural animations for the cute pixel face */
 
 /* =============================================================================
-   FACE CONTAINER - Just the pink face, no monitor frame
+   FACE CONTAINER - Just the pink face
    ============================================================================= */
 .pixel-face {
   --face-bg: #FF8A9B;
@@ -26,6 +26,11 @@
     inset 0 0 60px rgba(255, 255, 255, 0.2),
     0 8px 32px rgba(0, 0, 0, 0.3);
   user-select: none;
+  
+  /* Smooth transitions between states */
+  transition: 
+    transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.5s ease;
 }
 
 /* Subtle screen glow effect */
@@ -45,17 +50,23 @@
   pointer-events: none;
 }
 
-/* Breathing animation for idle state - slow and natural */
+/* Breathing animation for idle state */
 .pixel-face.idle {
   animation: breathe 5s ease-in-out infinite;
 }
 
 .pixel-face.talking {
   animation: talkBounce 0.8s ease-in-out infinite;
+  box-shadow: 
+    inset 0 0 60px rgba(255, 255, 255, 0.25),
+    0 8px 40px rgba(255, 138, 155, 0.3);
 }
 
 .pixel-face.thinking {
   animation: thinkSway 3s ease-in-out infinite;
+  box-shadow: 
+    inset 0 0 60px rgba(255, 255, 255, 0.2),
+    0 8px 40px rgba(245, 158, 11, 0.2);
 }
 
 /* =============================================================================
@@ -73,17 +84,23 @@
   height: 36px;
   background: var(--feature-color);
   border-radius: 4px;
-  transition: all 0.3s ease;
+  
+  /* Smooth transitions between states */
+  transition: 
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.3s ease,
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Idle state - normal square eyes */
+/* Idle state - normal square eyes with single blink */
 .eye.idle {
-  transform: scaleY(1);
+  animation: idleBlink 5s ease-in-out infinite;
 }
 
 /* Talking state - eyes with occasional blink */
 .eye.talking {
-  animation: eyeBlink 4s ease-in-out infinite;
+  animation: talkBlink 4s ease-in-out infinite;
 }
 
 /* Thinking state - squinted horizontal lines */
@@ -104,7 +121,12 @@
   position: relative;
   z-index: 2;
   opacity: 0;
-  transition: all 0.2s ease;
+  
+  /* Smooth transitions between states */
+  transition: 
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Show mouth when talking */
@@ -158,8 +180,18 @@
   }
 }
 
-/* Eye blink during talking - natural timing */
-@keyframes eyeBlink {
+/* Idle blink - single natural blink */
+@keyframes idleBlink {
+  0%, 38%, 42%, 100% {
+    transform: scaleY(1);
+  }
+  40% {
+    transform: scaleY(0.1);
+  }
+}
+
+/* Talking blink - natural timing */
+@keyframes talkBlink {
   0%, 42%, 48%, 100% {
     transform: scaleY(1);
   }
@@ -191,27 +223,6 @@
     height: 18px;
     width: 18px;
   }
-}
-
-/* =============================================================================
-   STATE TRANSITIONS - Smooth
-   ============================================================================= */
-.pixel-face {
-  transition: transform 0.4s ease;
-}
-
-.eye {
-  transition: 
-    width 0.3s ease,
-    height 0.3s ease,
-    border-radius 0.2s ease;
-}
-
-.mouth {
-  transition: 
-    opacity 0.2s ease,
-    width 0.2s ease,
-    height 0.2s ease;
 }
 
 /* =============================================================================
