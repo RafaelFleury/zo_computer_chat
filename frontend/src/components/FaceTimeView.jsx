@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import PixelFace from "./PixelFace";
-import SpeechBubble from "./SpeechBubble";
 import UserInputBubble from "./UserInputBubble";
 import "./FaceTimeView.css";
 
@@ -115,17 +114,7 @@ export default function FaceTimeView({
     setBubblesVisible((prev) => !prev);
   }, []);
 
-  // Calculate initial bubble positions based on viewport (fixed to full screen)
-  const speechBubblePosition = useMemo(() => {
-    // Position to the right of center (using full viewport since we're fixed)
-    const x =
-      typeof window !== "undefined"
-        ? Math.min(window.innerWidth * 0.55, window.innerWidth - 400)
-        : 500;
-    const y = typeof window !== "undefined" ? window.innerHeight * 0.18 : 150;
-    return { x, y };
-  }, [bubblesVisible]);
-
+  // Calculate initial bubble position (centered below avatar)
   const inputBubblePosition = useMemo(() => {
     // Position below avatar, centered (using full viewport since we're fixed)
     const x = typeof window !== "undefined" ? window.innerWidth / 2 - 160 : 300;
@@ -152,20 +141,15 @@ export default function FaceTimeView({
           </div>
         </div>
 
-        {/* Chat bubbles - only visible when toggled */}
+        {/* Chat bubble - only visible when toggled */}
         {bubblesVisible && (
-          <>
-            <SpeechBubble
-              message={lastAssistantMessage}
-              isLoading={isLoading && streamingState.status === "talking"}
-              initialPosition={speechBubblePosition}
-            />
-            <UserInputBubble
-              onSend={onSendMessage}
-              disabled={isLoading}
-              initialPosition={inputBubblePosition}
-            />
-          </>
+          <UserInputBubble
+            onSend={onSendMessage}
+            disabled={isLoading}
+            initialPosition={inputBubblePosition}
+            assistantMessage={lastAssistantMessage}
+            isLoading={isLoading && streamingState.status === "talking"}
+          />
         )}
 
         <div className="ambient-glow" data-state={animationState} />
