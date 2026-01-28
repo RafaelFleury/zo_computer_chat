@@ -12,34 +12,16 @@ import './PixelFace.css';
 const PixelFace = memo(function PixelFace({ animationState = 'idle' }) {
   return (
     <div className={`pixel-face ${animationState}`}>
-      <div className="face-screen">
-        {/* Eyes container */}
-        <div className="eyes">
-          <div className={`eye left ${animationState}`}>
-            <div className="pupil" />
-          </div>
-          <div className={`eye right ${animationState}`}>
-            <div className="pupil" />
-          </div>
-        </div>
-        
-        {/* Mouth - only visible when talking */}
-        <div className={`mouth ${animationState}`} />
-        
-        {/* Blush marks for extra cuteness */}
-        <div className="blush left" />
-        <div className="blush right" />
+      {/* Eyes container */}
+      <div className="eyes">
+        <div className={`eye left ${animationState}`} />
+        <div className={`eye right ${animationState}`} />
       </div>
       
-      {/* Monitor frame elements */}
-      <div className="monitor-chin">
-        <div className="monitor-logo" />
-      </div>
-      <div className="monitor-stand" />
-      <div className="monitor-base" />
+      {/* Mouth - only visible when talking */}
+      <div className={`mouth ${animationState}`} />
     </div>
   );
 });
 
 export default PixelFace;
-
