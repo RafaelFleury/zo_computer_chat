@@ -65,16 +65,17 @@ function App() {
       </div>
 
       <div className="tab-content">
-        {activeTab === 'chat' ? (
+        <div className={activeTab === 'chat' ? 'tab-panel active' : 'tab-panel'}>
           <ChatInterface
             conversationId={conversationId}
             initialMessages={messages}
             onConversationChange={(id) => setConversationId(id)}
             onMessageSent={refreshChatHistory}
           />
-        ) : (
+        </div>
+        <div className={activeTab === 'logs' ? 'tab-panel active' : 'tab-panel'}>
           <LogsViewer />
-        )}
+        </div>
       </div>
     </div>
   );

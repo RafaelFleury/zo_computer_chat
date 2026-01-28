@@ -101,6 +101,17 @@ body {
   position: relative;
 }
 
+.tab-panel {
+  display: none;
+  height: 100%;
+  width: 100%;
+}
+
+.tab-panel.active {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 10px;
