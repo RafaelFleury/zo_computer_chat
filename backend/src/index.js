@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import basicAuth from 'express-basic-auth';
+import bcrypt from 'bcryptjs';
 import { logger } from './utils/logger.js';
 import { zoMCP } from './services/mcpClient.js';
 import { llmClient } from './services/llmClient.js';
@@ -18,6 +20,26 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Authentication middleware (only if AUTH_PASSWORD is set)
+if (process.env.AUTH_PASSWORD) {
+  const authUsername = process.env.AUTH_USERNAME || 'admin';
+  const authPassword = process.env.AUTH_PASSWORD;
+
+  logger.info('🔒 Authentication enabled');
+
+  app.use(basicAuth({
+    users: { [authUsername]: authPassword },
+    challenge: true,
+    realm: 'Zo Computer Chat',
+    unauthorizedResponse: (req) => {
+      logger.warn(`Unauthorized access attempt from ${req.ip}`);
+      return 'Authentication required';
+    }
+  }));
+} else {
+  logger.warn('⚠️  Authentication is DISABLED. Set AUTH_PASSWORD in .env to enable.');
+}
 
 // Middleware
 app.use(cors());

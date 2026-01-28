@@ -123,6 +123,8 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 | `ZAI_API_KEY` | ✅ Yes | - | API key from Z.AI for LLM access |
 | `PORT` | No | `3001` | Server port number |
 | `NODE_ENV` | No | `development` | Environment mode: `development` (verbose logging, detailed errors) or `production` (optimized logging, sanitized errors). Change to `production` when deploying to staging/production servers. |
+| `AUTH_USERNAME` | No* | `admin` | Username for HTTP Basic Authentication. *Required for public deployments. |
+| `AUTH_PASSWORD` | No* | - | Password for HTTP Basic Authentication. *Required for public deployments. Use `node generate-password.js` to generate. |
 | `MODEL_NAME` | No | `glm-4.7` | GLM model to use (see Available Models section) |
 | `ZO_MCP_URL` | No | `https://api.zo.computer/mcp` | Zo Computer MCP server endpoint |
 | `ZAI_API_URL` | No | `https://api.z.ai/api/coding/paas/v4` | Z.AI API endpoint for LLM requests |
@@ -393,6 +395,47 @@ Backend logs are stored in `backend/logs/`:
 - `combined.log` - All logs
 - `error.log` - Error logs only
 - `mcp.log` - MCP-specific detailed logs
+
+## Security
+
+### Authentication for Public Deployments
+
+When deploying as a public service (e.g., Zo Computer service), **authentication is required** to protect your application.
+
+#### Setup Authentication:
+
+1. **Generate a secure password**:
+   ```bash
+   cd backend
+   node generate-password.js
+   ```
+
+2. **Add to your `.env` file**:
+   ```env
+   AUTH_USERNAME=admin
+   AUTH_PASSWORD=your_generated_password_here
+   ```
+
+3. **Restart the server** - authentication is now enabled
+
+#### How It Works:
+
+- Uses HTTP Basic Authentication (browser built-in login prompt)
+- Protects **all routes** (frontend, API, everything)
+- Username and password required for access
+- If `AUTH_PASSWORD` is not set, server runs **without authentication** (local dev only)
+
+#### Accessing Protected Service:
+
+When you visit the URL, your browser will prompt:
+- **Username**: Value from `AUTH_USERNAME` (default: `admin`)
+- **Password**: Value from `AUTH_PASSWORD`
+
+Browser remembers credentials for the session.
+
+#### Local Development:
+
+For local development, you can skip authentication by leaving `AUTH_PASSWORD` unset in your `.env` file.
 
 ## Troubleshooting
 
