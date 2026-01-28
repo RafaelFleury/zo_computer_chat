@@ -40,8 +40,7 @@ kill_node_processes() {
 # Kill backend (port 3001)
 kill_port 3001 "Backend"
 
-# Kill frontend (port 3000 and 5173 for Vite)
-kill_port 3000 "Frontend"
+# Kill frontend (port 5173 for Vite)
 kill_port 5173 "Frontend (Vite)"
 
 # Kill any remaining node processes related to the project

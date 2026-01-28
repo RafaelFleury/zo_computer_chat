@@ -28,12 +28,6 @@ if check_port 3001; then
     sleep 1
 fi
 
-if check_port 3000; then
-    echo "⚠️  Port 3000 is already in use. Killing existing process..."
-    lsof -ti:3000 | xargs kill -9 2>/dev/null
-    sleep 1
-fi
-
 if check_port 5173; then
     echo "⚠️  Port 5173 is already in use. Killing existing Vite process..."
     lsof -ti:5173 | xargs kill -9 2>/dev/null
@@ -41,6 +35,20 @@ if check_port 5173; then
 fi
 
 echo "✓ Ports are clear"
+
+# Function to wait for backend to be ready
+wait_for_backend() {
+    local max_attempts=30
+    local attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if curl -s http://localhost:3001/health > /dev/null 2>&1; then
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+    return 1
+}
 echo ""
 
 # Check backend dependencies
@@ -94,7 +102,6 @@ cleanup() {
 
     # Force kill if still running
     lsof -ti:3001 | xargs kill -9 2>/dev/null
-    lsof -ti:3000 | xargs kill -9 2>/dev/null
     lsof -ti:5173 | xargs kill -9 2>/dev/null
 
     echo "✅ Servers stopped"
@@ -110,9 +117,14 @@ npm run dev &
 BACKEND_PID=$!
 cd ..
 
-# Wait for backend to start
-echo "⏳ Waiting for backend to initialize..."
-sleep 3
+# Wait for backend to actually be ready (not just started)
+echo "⏳ Waiting for backend to be ready..."
+if wait_for_backend; then
+    echo "✓ Backend is ready"
+else
+    echo "❌ Backend failed to start within 30 seconds"
+    exit 1
+fi
 
 # Start frontend
 echo "🎨 Starting frontend..."
@@ -122,9 +134,9 @@ FRONTEND_PID=$!
 cd ..
 
 echo ""
-echo "✅ Both servers are starting!"
+echo "✅ Both servers are running!"
 echo ""
-echo "📍 Frontend: http://localhost:3000 (or check console for actual port)"
+echo "📍 Frontend: http://localhost:5173"
 echo "📍 Backend:  http://localhost:3001"
 echo ""
 echo "💡 To stop: Press Ctrl+C or run ./stop.sh"

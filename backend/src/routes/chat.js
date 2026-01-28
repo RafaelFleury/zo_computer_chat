@@ -307,33 +307,48 @@ router.get('/history/:id', async (req, res) => {
     const { id } = req.params;
     const messages = await chatPersistence.loadConversation(id);
 
-    // Normalize messages to ensure proper format for LLM
-    // The LLM expects messages in OpenAI format: { role, content } or { role, content, tool_calls }
+    // Normalize messages to ensure proper format for both LLM and frontend
     const normalizedMessages = messages.map(msg => {
       // Ensure message has required fields
       const normalized = {
         role: msg.role,
         content: msg.content || ''
       };
-      
-      // Preserve tool_calls if present (for assistant messages that used tools)
+
+      // Preserve toolCalls for frontend display (on assistant messages)
+      if (msg.toolCalls) {
+        normalized.toolCalls = msg.toolCalls;
+      }
+
+      // Preserve tool_calls if present (for assistant messages that used tools - LLM format)
       if (msg.tool_calls) {
         normalized.tool_calls = msg.tool_calls;
       }
-      
+
       // Preserve tool-specific fields if present (for tool role messages)
       if (msg.role === 'tool' && msg.name && msg.tool_call_id) {
         normalized.name = msg.name;
         normalized.tool_call_id = msg.tool_call_id;
       }
-      
+
       return normalized;
     });
 
     // Load into memory for continued chat - this ensures context is preserved
     conversations.set(id, normalizedMessages);
-    
+
     logger.info(`Conversation loaded into memory: ${id} (${normalizedMessages.length} messages)`);
+
+    // Debug log to see what we're sending to frontend
+    normalizedMessages.forEach((msg, idx) => {
+      if (msg.toolCalls) {
+        logger.info(`Message ${idx} has toolCalls:`, {
+          role: msg.role,
+          toolCallsCount: msg.toolCalls.length,
+          toolCallsSample: msg.toolCalls[0]
+        });
+      }
+    });
 
     res.json({ id, messages: normalizedMessages });
   } catch (error) {
