@@ -4,10 +4,11 @@
    FACE CONTAINER - Just the pink face
    ============================================================================= */
 .pixel-face {
-  --face-bg: #FF8A9B;
-  --face-bg-light: #FFB6C1;
-  --feature-color: #1a1a1a;
-  
+  /* Face colors - uses global accent for consistency, with local overrides */
+  --face-bg: var(--accent-pink, #ff8a9b);
+  --face-bg-light: var(--accent-pink-light, #ffb6c1);
+  --feature-color: var(--surface, #1a1a1a);
+
   position: relative;
   width: 320px;
   height: 240px;
@@ -22,20 +23,20 @@
   align-items: center;
   justify-content: center;
   gap: 24px;
-  box-shadow: 
+  box-shadow:
     inset 0 0 60px rgba(255, 255, 255, 0.2),
     0 8px 32px rgba(0, 0, 0, 0.3);
   user-select: none;
-  
+
   /* Smooth transitions between states */
-  transition: 
+  transition:
     transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.5s ease;
 }
 
 /* Subtle screen glow effect */
 .pixel-face::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -57,14 +58,14 @@
 
 .pixel-face.talking {
   animation: talkBounce 0.8s ease-in-out infinite;
-  box-shadow: 
+  box-shadow:
     inset 0 0 60px rgba(255, 255, 255, 0.25),
     0 8px 40px rgba(255, 138, 155, 0.3);
 }
 
 .pixel-face.thinking {
   animation: thinkSway 3s ease-in-out infinite;
-  box-shadow: 
+  box-shadow:
     inset 0 0 60px rgba(255, 255, 255, 0.2),
     0 8px 40px rgba(245, 158, 11, 0.2);
 }
@@ -72,7 +73,7 @@
 /* Sleeping state - very slow, peaceful breathing */
 .pixel-face.sleeping {
   animation: sleepBreathe 6s ease-in-out infinite;
-  box-shadow: 
+  box-shadow:
     inset 0 0 60px rgba(255, 255, 255, 0.15),
     0 8px 32px rgba(139, 92, 246, 0.15);
 }
@@ -92,9 +93,9 @@
   height: 36px;
   background: var(--feature-color);
   border-radius: 4px;
-  
+
   /* Smooth transitions between states */
-  transition: 
+  transition:
     width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     border-radius 0.3s ease,
@@ -136,9 +137,9 @@
   position: relative;
   z-index: 2;
   opacity: 0;
-  
+
   /* Smooth transitions between states */
-  transition: 
+  transition:
     opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -169,7 +170,8 @@
 
 /* Idle breathing - very subtle, peaceful */
 @keyframes breathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1) translateY(0);
   }
   50% {
@@ -179,7 +181,8 @@
 
 /* Sleeping breathing - slower, deeper */
 @keyframes sleepBreathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1) translateY(0);
   }
   50% {
@@ -189,7 +192,8 @@
 
 /* Talking bounce - gentle, engaged */
 @keyframes talkBounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1) translateY(0);
   }
   50% {
@@ -199,7 +203,8 @@
 
 /* Thinking sway - contemplative, slow */
 @keyframes thinkSway {
-  0%, 100% {
+  0%,
+  100% {
     transform: rotate(0deg) translateX(0);
   }
   25% {
@@ -212,7 +217,10 @@
 
 /* Idle blink - single natural blink */
 @keyframes idleBlink {
-  0%, 38%, 42%, 100% {
+  0%,
+  38%,
+  42%,
+  100% {
     transform: scaleY(1);
   }
   40% {
@@ -222,7 +230,10 @@
 
 /* Talking blink - natural timing */
 @keyframes talkBlink {
-  0%, 42%, 48%, 100% {
+  0%,
+  42%,
+  48%,
+  100% {
     transform: scaleY(1);
   }
   45% {
@@ -232,7 +243,8 @@
 
 /* Thinking eyes shift - slow and thoughtful */
 @keyframes thinkingEyes {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateX(0);
   }
   30% {
@@ -245,7 +257,8 @@
 
 /* Mouth talking animation - natural open/close */
 @keyframes mouthTalk {
-  0%, 100% {
+  0%,
+  100% {
     height: 8px;
     width: 14px;
   }
@@ -263,21 +276,21 @@
     width: 240px;
     height: 180px;
   }
-  
+
   .eyes {
     gap: 45px;
   }
-  
+
   .eye {
     width: 28px;
     height: 28px;
   }
-  
+
   .eye.thinking,
   .eye.sleeping {
     height: 8px;
   }
-  
+
   .eye.sleeping {
     height: 5px;
   }

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 
 * {
   box-sizing: border-box;
@@ -20,6 +20,8 @@
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
   --accent-red: #ef4444;
+  --accent-pink: #ff8a9b;
+  --accent-pink-light: #ffb6c1;
 
   /* Text Colors - Pure white scale */
   --text-primary: #ffffff;
@@ -34,12 +36,22 @@
   --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.4);
 
   /* Gradients - For accents only */
-  --gradient-primary: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-cyan) 100%);
+  --gradient-primary: linear-gradient(
+    135deg,
+    var(--accent-purple) 0%,
+    var(--accent-cyan) 100%
+  );
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Roboto",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -53,7 +65,9 @@ body {
   height: 100vh;
   width: 100vw;
   position: relative;
-  transition: margin-left 0.3s ease, width 0.3s ease;
+  transition:
+    margin-left 0.3s ease,
+    width 0.3s ease;
 }
 
 .app.sidebar-open {
@@ -162,7 +176,8 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
