@@ -107,23 +107,23 @@ export default function FaceTimeView({
     setBubblesVisible((prev) => !prev);
   }, []);
 
-  // Calculate initial bubble positions based on viewport
+  // Calculate initial bubble positions based on viewport (fixed to full screen)
   const speechBubblePosition = useMemo(() => {
-    // Position to the right of center
+    // Position to the right of center (using full viewport since we're fixed)
     const x =
       typeof window !== "undefined"
-        ? Math.min(window.innerWidth * 0.6, window.innerWidth - 400)
+        ? Math.min(window.innerWidth * 0.55, window.innerWidth - 400)
         : 500;
-    const y = typeof window !== "undefined" ? window.innerHeight * 0.2 : 150;
+    const y = typeof window !== "undefined" ? window.innerHeight * 0.18 : 150;
     return { x, y };
-  }, []);
+  }, [bubblesVisible]);
 
   const inputBubblePosition = useMemo(() => {
-    // Position below center, above footer
+    // Position below avatar, centered (using full viewport since we're fixed)
     const x = typeof window !== "undefined" ? window.innerWidth / 2 - 160 : 300;
-    const y = typeof window !== "undefined" ? window.innerHeight * 0.65 : 400;
+    const y = typeof window !== "undefined" ? window.innerHeight * 0.72 : 500;
     return { x, y };
-  }, []);
+  }, [bubblesVisible]);
 
   return (
     <div className="facetime-view" ref={containerRef}>
