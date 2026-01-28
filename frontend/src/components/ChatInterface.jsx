@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import './ChatInterface.css';
 
-export default function ChatInterface({ conversationId, initialMessages, onConversationChange }) {
+export default function ChatInterface({ conversationId, initialMessages, onConversationChange, onMessageSent }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -164,6 +164,11 @@ export default function ChatInterface({ conversationId, initialMessages, onConve
         };
         return updated;
       });
+
+      // Notify parent that message was sent (to refresh history)
+      if (onMessageSent) {
+        onMessageSent();
+      }
 
     } catch (err) {
       setError(err.message);

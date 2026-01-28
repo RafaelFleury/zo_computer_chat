@@ -103,7 +103,25 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 
 ## Running the Application
 
-### Development Mode
+### Quick Start (Recommended)
+
+From the project root directory:
+
+```bash
+# Start both frontend and backend
+./start.sh
+
+# Stop all processes
+./stop.sh
+```
+
+The `start.sh` script will:
+- Check for existing processes on ports 3001/3000 and kill them if needed
+- Install dependencies if missing
+- Start backend and frontend servers
+- Handle cleanup on Ctrl+C
+
+### Development Mode (Manual)
 
 1. **Start the backend** (from `backend/` directory):
    ```bash
@@ -121,6 +139,22 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
    ```
 
    The app will open at `http://localhost:3000`
+
+3. **To stop all processes**:
+   ```bash
+   # From project root
+   ./stop.sh
+   ```
+
+   Or manually kill processes on the ports:
+   ```bash
+   # Kill backend
+   lsof -ti:3001 | xargs kill -9
+
+   # Kill frontend
+   lsof -ti:3000 | xargs kill -9
+   lsof -ti:5173 | xargs kill -9
+   ```
 
 ### Production Build
 
@@ -224,7 +258,35 @@ Backend logs are stored in `backend/logs/`:
 
 ## Troubleshooting
 
-### Backend won't start
+### Backend won't start - "EADDRINUSE: address already in use"
+
+This means port 3001 is already in use by a previous instance. Solutions:
+
+1. **Use the stop script** (recommended):
+   ```bash
+   ./stop.sh
+   ```
+
+2. **Kill the process manually**:
+   ```bash
+   lsof -ti:3001 | xargs kill -9
+   ```
+
+3. **Use start.sh which auto-kills existing processes**:
+   ```bash
+   ./start.sh
+   ```
+
+### Ctrl+C doesn't stop the servers
+
+If Ctrl+C doesn't work properly, use:
+```bash
+./stop.sh
+```
+
+This will forcefully kill all backend and frontend processes.
+
+### Backend won't start - Other issues
 
 - Verify API keys are set in `backend/.env`
 - Check that ports 3001 is available

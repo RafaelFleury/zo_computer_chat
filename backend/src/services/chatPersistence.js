@@ -123,7 +123,7 @@ class ChatPersistence {
         })
         .filter(Boolean);
 
-      // Filter out deleted conversations by checking the deleted flag
+      // Check deleted flag for each conversation
       const activeConversations = [];
       for (const conv of allConversations) {
         try {

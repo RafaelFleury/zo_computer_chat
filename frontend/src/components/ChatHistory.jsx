@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import './ChatHistory.css';
 
-function ChatHistory({ currentConversationId, onSelectConversation, onNewConversation }) {
+const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation }, ref) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -95,11 +95,15 @@ function ChatHistory({ currentConversationId, onSelectConversation, onNewConvers
     });
   };
 
-  // Load on mount and refresh every 10 seconds
+  // Expose refresh method to parent component
+  useImperativeHandle(ref, () => ({
+    refresh: loadConversations
+  }));
+
+  // Load on mount only - no automatic polling
+  // Will reload after user actions (delete, new conversation, send message)
   useEffect(() => {
     loadConversations();
-    const interval = setInterval(loadConversations, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -112,9 +116,19 @@ function ChatHistory({ currentConversationId, onSelectConversation, onNewConvers
         <div className="chat-history-content">
           <div className="chat-history-header">
             <h3>Chat History</h3>
-            <button className="new-chat-btn" onClick={onNewConversation} title="New conversation">
-              +
-            </button>
+            <div className="header-buttons">
+              <button
+                className="refresh-btn"
+                onClick={loadConversations}
+                disabled={loading}
+                title="Refresh history"
+              >
+                ↻
+              </button>
+              <button className="new-chat-btn" onClick={onNewConversation} title="New conversation">
+                +
+              </button>
+            </div>
           </div>
 
           {loading && conversations.length === 0 && (
@@ -160,6 +174,8 @@ function ChatHistory({ currentConversationId, onSelectConversation, onNewConvers
       )}
     </div>
   );
-}
+});
+
+ChatHistory.displayName = 'ChatHistory';
 
 export default ChatHistory;

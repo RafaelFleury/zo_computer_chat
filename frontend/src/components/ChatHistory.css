@@ -77,6 +77,13 @@
   letter-spacing: -0.02em;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.refresh-btn,
 .new-chat-btn {
   width: 36px;
   height: 36px;
@@ -94,10 +101,22 @@
   line-height: 1;
 }
 
+.refresh-btn:hover,
 .new-chat-btn:hover {
   background: var(--surface);
   border-color: var(--accent-purple);
   color: var(--accent-purple);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refresh-btn:disabled:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
 }
 
 .chat-history-loading,

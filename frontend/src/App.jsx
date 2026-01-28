@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import ChatInterface from './components/ChatInterface';
 import LogsViewer from './components/LogsViewer';
 import ChatHistory from './components/ChatHistory';
@@ -8,6 +8,12 @@ function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const chatHistoryRef = useRef(null);
+
+  // Refresh chat history (called after message sent or conversation deleted)
+  const refreshChatHistory = () => {
+    chatHistoryRef.current?.refresh();
+  };
 
   // Create new conversation
   const handleNewConversation = async () => {
@@ -35,6 +41,7 @@ function App() {
   return (
     <div className="app">
       <ChatHistory
+        ref={chatHistoryRef}
         currentConversationId={conversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
@@ -61,6 +68,7 @@ function App() {
             conversationId={conversationId}
             initialMessages={messages}
             onConversationChange={(id) => setConversationId(id)}
+            onMessageSent={refreshChatHistory}
           />
         ) : (
           <LogsViewer />
