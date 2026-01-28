@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "build": "cd ../frontend && npm install && npm run build",
+    "build:prod": "npm run build && npm start"
   },
   "keywords": ["zo", "mcp", "chatbot", "glm"],
   "author": "",

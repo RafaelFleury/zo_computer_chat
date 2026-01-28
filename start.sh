@@ -5,6 +5,12 @@
 echo "🚀 Starting Zo Computer Chat..."
 echo ""
 
+# Parse command line arguments
+MODE="dev"
+if [ "$1" == "--prod" ] || [ "$1" == "-p" ]; then
+    MODE="prod"
+fi
+
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
     echo "❌ Node.js is not installed. Please install Node.js 18+ first."
@@ -12,6 +18,7 @@ if ! command -v node &> /dev/null; then
 fi
 
 echo "✓ Node.js $(node --version) detected"
+echo "📦 Mode: $MODE"
 echo ""
 
 # Function to check if port is in use
@@ -28,10 +35,12 @@ if check_port 3001; then
     sleep 1
 fi
 
-if check_port 5173; then
-    echo "⚠️  Port 5173 is already in use. Killing existing Vite process..."
-    lsof -ti:5173 | xargs kill -9 2>/dev/null
-    sleep 1
+if [ "$MODE" == "dev" ]; then
+    if check_port 5173; then
+        echo "⚠️  Port 5173 is already in use. Killing existing Vite process..."
+        lsof -ti:5173 | xargs kill -9 2>/dev/null
+        sleep 1
+    fi
 fi
 
 echo "✓ Ports are clear"
@@ -102,7 +111,9 @@ cleanup() {
 
     # Force kill if still running
     lsof -ti:3001 | xargs kill -9 2>/dev/null
-    lsof -ti:5173 | xargs kill -9 2>/dev/null
+    if [ "$MODE" == "dev" ]; then
+        lsof -ti:5173 | xargs kill -9 2>/dev/null
+    fi
 
     echo "✅ Servers stopped"
     exit 0
@@ -110,37 +121,75 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM EXIT
 
-# Start backend in background
-echo "🔧 Starting backend server..."
-cd backend
-npm run dev &
-BACKEND_PID=$!
-cd ..
+if [ "$MODE" == "prod" ]; then
+    # Production mode - build frontend and start unified server
+    echo "🏗️  Building frontend..."
+    cd backend
+    npm run build
+    if [ $? -ne 0 ]; then
+        echo "❌ Frontend build failed"
+        exit 1
+    fi
+    echo "✓ Frontend built successfully"
+    echo ""
 
-# Wait for backend to actually be ready (not just started)
-echo "⏳ Waiting for backend to be ready..."
-if wait_for_backend; then
-    echo "✓ Backend is ready"
+    echo "🔧 Starting unified server..."
+    npm start &
+    BACKEND_PID=$!
+    cd ..
+
+    # Wait for backend to be ready
+    echo "⏳ Waiting for server to be ready..."
+    if wait_for_backend; then
+        echo "✓ Server is ready"
+    else
+        echo "❌ Server failed to start within 30 seconds"
+        exit 1
+    fi
+
+    echo ""
+    echo "✅ Production server is running!"
+    echo ""
+    echo "📍 Application: http://localhost:3001"
+    echo ""
+    echo "💡 To stop: Press Ctrl+C or run ./stop.sh"
+    echo ""
+
+    wait $BACKEND_PID
 else
-    echo "❌ Backend failed to start within 30 seconds"
-    exit 1
+    # Development mode - separate servers
+    echo "🔧 Starting backend server..."
+    cd backend
+    npm run dev &
+    BACKEND_PID=$!
+    cd ..
+
+    # Wait for backend to actually be ready (not just started)
+    echo "⏳ Waiting for backend to be ready..."
+    if wait_for_backend; then
+        echo "✓ Backend is ready"
+    else
+        echo "❌ Backend failed to start within 30 seconds"
+        exit 1
+    fi
+
+    # Start frontend
+    echo "🎨 Starting frontend..."
+    cd frontend
+    npm run dev &
+    FRONTEND_PID=$!
+    cd ..
+
+    echo ""
+    echo "✅ Both servers are running!"
+    echo ""
+    echo "📍 Frontend: http://localhost:5173"
+    echo "📍 Backend:  http://localhost:3001"
+    echo ""
+    echo "💡 To stop: Press Ctrl+C or run ./stop.sh"
+    echo "💡 For production mode: ./start.sh --prod"
+    echo ""
+
+    # Wait for both processes
+    wait $BACKEND_PID $FRONTEND_PID
 fi
-
-# Start frontend
-echo "🎨 Starting frontend..."
-cd frontend
-npm run dev &
-FRONTEND_PID=$!
-cd ..
-
-echo ""
-echo "✅ Both servers are running!"
-echo ""
-echo "📍 Frontend: http://localhost:5173"
-echo "📍 Backend:  http://localhost:3001"
-echo ""
-echo "💡 To stop: Press Ctrl+C or run ./stop.sh"
-echo ""
-
-# Wait for both processes
-wait $BACKEND_PID $FRONTEND_PID

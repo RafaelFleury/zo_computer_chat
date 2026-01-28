@@ -131,9 +131,30 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `VITE_API_URL` | No | `http://localhost:3001` | Backend API base URL |
+| `VITE_API_URL` | No | `http://localhost:3001` | Backend API base URL. Use `http://localhost:3001` for dev mode with separate servers. Leave empty or unset for production mode (same server). |
 
 **Note**: All URL configurations support environment variables, making it easy to deploy to different environments (development, staging, production) without code changes.
+
+### Deployment Modes
+
+#### Development Mode (Separate Servers)
+- **Frontend**: Vite dev server on port 5173 with hot module reload
+- **Backend**: Express server on port 3001
+- **CORS**: Enabled for cross-origin requests
+- **Use case**: Active development with instant updates
+- **Start**: `./start.sh`
+
+#### Production Mode (Unified Server)
+- **Frontend**: Built to static files, served by Express
+- **Backend**: Express server on port 3001
+- **CORS**: Not needed (same origin)
+- **Use case**: Production deployment, staging, or local production testing
+- **Start**: `./start.sh --prod`
+- **Benefits**:
+  - Single endpoint to manage
+  - No CORS complexity
+  - Simpler deployment
+  - Better performance
 
 ## Running the Application
 
@@ -142,17 +163,32 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 From the project root directory:
 
 ```bash
-# Start both frontend and backend
+# Development mode - separate frontend and backend servers (with hot reload)
 ./start.sh
+
+# Production mode - unified server on single endpoint
+./start.sh --prod
 
 # Stop all processes
 ./stop.sh
 ```
 
+**Development Mode** (`./start.sh`):
+- Runs frontend on `http://localhost:5173` (Vite dev server with hot reload)
+- Runs backend on `http://localhost:3001`
+- Best for development with instant file updates
+
+**Production Mode** (`./start.sh --prod`):
+- Builds frontend and serves it from backend
+- Single endpoint: `http://localhost:3001`
+- Frontend and backend unified on same server
+- Recommended for production deployment
+
 The `start.sh` script will:
-- Check for existing processes on ports 3001/3000 and kill them if needed
+- Check for existing processes on ports and kill them if needed
 - Install dependencies if missing
-- Start backend and frontend servers
+- Build frontend (production mode only)
+- Start server(s) based on mode
 - Handle cleanup on Ctrl+C
 
 ### Development Mode (Manual)
@@ -192,18 +228,26 @@ The `start.sh` script will:
 
 ### Production Build
 
-**Frontend**:
+**Option 1: Quick production start (Recommended)**:
 ```bash
-cd frontend
-npm run build
-npm run preview
+./start.sh --prod
 ```
 
-**Backend**:
+**Option 2: Manual build and start**:
 ```bash
+# Build frontend into backend/public
 cd backend
+npm run build
+
+# Start unified server
 npm start
 ```
+
+The production build:
+- Compiles frontend to optimized static files in `backend/public/`
+- Backend serves frontend files from the same endpoint
+- Single server on port 3001 serves both API and UI
+- No CORS needed since same-origin
 
 ## Usage
 
@@ -402,6 +446,7 @@ zo_computer_chat/
 │   │   ├── utils/
 │   │   │   └── logger.js
 │   │   └── index.js
+│   ├── public/              # Frontend build output (production)
 │   ├── logs/
 │   ├── package.json
 │   └── .env
@@ -418,8 +463,11 @@ zo_computer_chat/
 │   │   ├── App.css
 │   │   └── main.jsx
 │   ├── index.html
+│   ├── vite.config.js       # Builds to ../backend/public
 │   ├── package.json
 │   └── .env
+├── start.sh                 # Unified start script (dev/prod modes)
+├── stop.sh                  # Stop all processes
 └── README.md
 
 External (runtime-created):
@@ -446,5 +494,5 @@ MIT
 
 - [Zo Computer Documentation](https://docs.zocomputer.com)
 - [Z.AI Documentation](https://docs.z.ai)
+- [GLM Coding Documentation](https://docs.z.ai/devpack/overview)
 - [Model Context Protocol Spec](https://modelcontextprotocol.io)
-- [GLM-4 Models](https://docs.z.ai/devpack/overview)

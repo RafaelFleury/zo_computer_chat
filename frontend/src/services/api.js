@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Use VITE_API_URL if set
+// Dev mode (.env): 'http://localhost:3001' for separate servers
+// Prod mode (.env.production): empty string for same-origin relative paths
+const API_URL = import.meta.env.VITE_API_URL !== undefined
+  ? import.meta.env.VITE_API_URL
+  : 'http://localhost:3001';
 
 // Export API_URL for use in other components
 export { API_URL };

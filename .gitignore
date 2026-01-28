@@ -17,6 +17,7 @@ npm-debug.log*
 dist/
 build/
 .vite/
+backend/public/
 
 # IDE
 .vscode/

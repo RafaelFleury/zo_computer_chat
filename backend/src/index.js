@@ -1,11 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from './utils/logger.js';
 import { zoMCP } from './services/mcpClient.js';
 import { llmClient } from './services/llmClient.js';
 import { personaManager } from './services/personaManager.js';
 import chatRouter from './routes/chat.js';
+
+// ES module __dirname equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -23,7 +29,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
+// API Routes (must be before static files)
 app.use('/api/chat', chatRouter);
 
 // Health check
@@ -39,6 +45,20 @@ app.get('/health', (req, res) => {
 app.get('/api/tools', (req, res) => {
   const tools = zoMCP.getAvailableTools();
   res.json({ tools });
+});
+
+// Serve static files from frontend build (production mode)
+// __dirname is /backend/src, so go up one level to /backend then into /public
+const frontendPath = path.join(__dirname, '../public');
+app.use(express.static(frontendPath));
+
+// SPA fallback - serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes
+  if (req.path.startsWith('/api/') || req.path === '/health') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Error handling middleware
