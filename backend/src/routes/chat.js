@@ -317,7 +317,18 @@ router.get('/history/:id', async (req, res) => {
 
       // Preserve toolCalls for frontend display (on assistant messages)
       if (msg.toolCalls) {
-        normalized.toolCalls = msg.toolCalls;
+        // Fix tool calls that were saved with intermediate states
+        // Since these are loaded messages, any 'starting' or 'executing' should be marked as completed
+        normalized.toolCalls = msg.toolCalls.map(tc => {
+          if (tc.status === 'starting' || tc.status === 'executing') {
+            return {
+              ...tc,
+              status: 'completed',
+              success: tc.success !== false // If not explicitly false, assume success
+            };
+          }
+          return tc;
+        });
       }
 
       // Preserve tool_calls if present (for assistant messages that used tools - LLM format)
