@@ -4,6 +4,7 @@ import LogsViewer from "./components/LogsViewer";
 import ChatHistory from "./components/ChatHistory";
 import FaceTimeView from "./components/FaceTimeView";
 import Toast from "./components/Toast";
+import { API_URL } from "./services/api";
 import "./App.css";
 
 function App() {
@@ -36,7 +37,7 @@ function App() {
     try {
       console.log("Creating new conversation...");
       const response = await fetch(
-        "http://localhost:3001/api/chat/history/new",
+        `${API_URL}/api/chat/history/new`,
         {
           method: "POST",
         },

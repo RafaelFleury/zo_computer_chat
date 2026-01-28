@@ -12,9 +12,10 @@ class LLMClient {
     logger.info(`Initializing LLM client with model: ${this.modelName}`);
 
     // Initialize OpenAI SDK with Z.AI coding endpoint (optimized for tool calling)
+    const apiUrl = process.env.ZAI_API_URL || 'https://api.z.ai/api/coding/paas/v4';
     this.client = new OpenAI({
       apiKey: apiKey,
-      baseURL: 'https://api.z.ai/api/coding/paas/v4'
+      baseURL: apiUrl
     });
 
     logger.info('LLM client initialized successfully');

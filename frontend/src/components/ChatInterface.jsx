@@ -153,7 +153,7 @@ const ChatInterface = forwardRef(function ChatInterface(
       let convId = currentConversationId;
       if (!convId) {
         const newConvResponse = await fetch(
-          "http://localhost:3001/api/chat/history/new",
+          `${api.API_URL}/api/chat/history/new`,
           {
             method: "POST",
           },

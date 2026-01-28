@@ -1,5 +1,6 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { showToast } from './Toast';
+import { API_URL } from '../services/api';
 import './ChatHistory.css';
 
 const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation, onToggle }, ref) => {
@@ -21,7 +22,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
   const loadConversations = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/chat/history');
+      const response = await fetch(`${API_URL}/api/chat/history`);
       const data = await response.json();
       setConversations(data.conversations || []);
       setError(null);
@@ -49,7 +50,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
 
     try {
       console.log('Deleting conversation:', conversationId);
-      const response = await fetch(`http://localhost:3001/api/chat/history/${conversationId}`, {
+      const response = await fetch(`${API_URL}/api/chat/history/${conversationId}`, {
         method: 'DELETE'
       });
 
@@ -83,7 +84,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
   // Load conversation
   const handleSelect = async (conversationId) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/chat/history/${conversationId}`);
+      const response = await fetch(`${API_URL}/api/chat/history/${conversationId}`);
       const data = await response.json();
 
       if (data.messages) {

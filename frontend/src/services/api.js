@@ -1,6 +1,10 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+// Export API_URL for use in other components
+export { API_URL };
+
 export const api = {
+  API_URL, // Make API_URL accessible via api.API_URL
   async sendMessage(message, conversationId = 'default') {
     const response = await fetch(`${API_URL}/api/chat`, {
       method: 'POST',

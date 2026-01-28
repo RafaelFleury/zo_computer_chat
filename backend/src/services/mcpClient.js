@@ -14,8 +14,9 @@ class ZoMCPClient {
       logger.info('Connecting to Zo MCP server...');
 
       // Create HTTP transport for Zo's HTTP MCP endpoint
+      const mcpUrl = process.env.ZO_MCP_URL || 'https://api.zo.computer/mcp';
       const transport = new StreamableHTTPClientTransport(
-        new URL('https://api.zo.computer/mcp'),
+        new URL(mcpUrl),
         {
           requestInit: {
             headers: {

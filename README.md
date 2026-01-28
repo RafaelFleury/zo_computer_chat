@@ -81,10 +81,20 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 
    Edit `.env` and add your API keys:
    ```env
+   # Required API Keys
    ZO_API_KEY=your_zo_api_key_here
    ZAI_API_KEY=your_zai_api_key_here
-   MODEL_NAME=glm-4-flash
+
+   # Server Configuration
    PORT=3001
+   NODE_ENV=development
+
+   # Model Configuration
+   MODEL_NAME=glm-4-flash
+
+   # API Endpoints (optional - defaults provided)
+   ZO_MCP_URL=https://api.zo.computer/mcp
+   ZAI_API_URL=https://api.z.ai/api/coding/paas/v4
    ```
 
    **Getting API Keys**:
@@ -99,8 +109,31 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 
    The default configuration should work if backend runs on port 3001:
    ```env
+   # Backend API URL (optional - defaults to http://localhost:3001)
    VITE_API_URL=http://localhost:3001
    ```
+
+### Environment Variables Reference
+
+#### Backend Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ZO_API_KEY` | ✅ Yes | - | API key from Zo Computer (get from Settings → API & MCP) |
+| `ZAI_API_KEY` | ✅ Yes | - | API key from Z.AI for LLM access |
+| `PORT` | No | `3001` | Server port number |
+| `NODE_ENV` | No | `development` | Environment mode (`development` or `production`) |
+| `MODEL_NAME` | No | `glm-4.7` | GLM model to use (see Available Models section) |
+| `ZO_MCP_URL` | No | `https://api.zo.computer/mcp` | Zo Computer MCP server endpoint |
+| `ZAI_API_URL` | No | `https://api.z.ai/api/coding/paas/v4` | Z.AI API endpoint for LLM requests |
+
+#### Frontend Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VITE_API_URL` | No | `http://localhost:3001` | Backend API base URL |
+
+**Note**: All URL configurations support environment variables, making it easy to deploy to different environments (development, staging, production) without code changes.
 
 ## Running the Application
 
@@ -328,8 +361,9 @@ This will forcefully kill all backend and frontend processes.
 ### Backend won't start - Other issues
 
 - Verify API keys are set in `backend/.env`
-- Check that ports 3001 is available
+- Check that port 3001 is available
 - Review `backend/logs/error.log` for details
+- Ensure environment variables are properly configured (see Environment Variables Reference)
 
 ### MCP connection fails
 
@@ -339,9 +373,10 @@ This will forcefully kill all backend and frontend processes.
 
 ### Frontend can't connect to backend
 
-- Verify backend is running on the correct port
-- Check `VITE_API_URL` in `frontend/.env`
+- Verify backend is running on the correct port (default: 3001)
+- Check `VITE_API_URL` in `frontend/.env` matches your backend URL
 - Review browser console for CORS errors
+- Ensure the backend server started successfully before the frontend
 
 ### No tools available
 
