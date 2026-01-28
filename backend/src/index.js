@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { logger } from './utils/logger.js';
 import { zoMCP } from './services/mcpClient.js';
 import { llmClient } from './services/llmClient.js';
+import { personaManager } from './services/personaManager.js';
 import chatRouter from './routes/chat.js';
 
 // Load environment variables
@@ -59,8 +60,12 @@ async function start() {
 
     logger.info('Starting Zo Chat Backend...');
 
-    // Initialize MCP client
+    // Initialize MCP client first (required for persona manager)
     await zoMCP.connect(process.env.ZO_API_KEY);
+
+    // Initialize Persona Manager (depends on MCP)
+    await personaManager.initialize();
+    logger.info('Persona Manager initialized');
 
     // Initialize LLM client
     llmClient.initialize(process.env.ZAI_API_KEY);
@@ -70,6 +75,7 @@ async function start() {
       logger.info(`Server running on http://localhost:${PORT}`);
       logger.info(`Model: ${process.env.MODEL_NAME || 'glm-4-flash'}`);
       logger.info(`Available MCP tools: ${zoMCP.getAvailableTools().length}`);
+      logger.info(`System message loaded from: /home/workspace/zo_chat_memories/initial_persona.json`);
     });
 
   } catch (error) {

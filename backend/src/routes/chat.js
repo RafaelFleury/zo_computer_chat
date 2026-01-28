@@ -1,6 +1,7 @@
 import express from 'express';
 import { llmClient } from '../services/llmClient.js';
 import { chatPersistence } from '../services/chatPersistence.js';
+import { personaManager } from '../services/personaManager.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -61,7 +62,14 @@ router.post('/', async (req, res) => {
       ...(msg.name && { name: msg.name }),
       ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
     }));
-    
+
+    // Add system message at the beginning if this is a new conversation
+    if (conversationForLLM.length === 0) {
+      const systemMessage = personaManager.getSystemMessage();
+      conversationForLLM.unshift({ role: 'system', content: systemMessage });
+      logger.info('Added system message to new conversation');
+    }
+
     // Add the new user message
     conversationForLLM.push({ role: 'user', content: message });
     conversation.push({ role: 'user', content: message });
@@ -155,7 +163,14 @@ router.post('/stream', async (req, res) => {
       ...(msg.name && { name: msg.name }),
       ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
     }));
-    
+
+    // Add system message at the beginning if this is a new conversation
+    if (conversationForLLM.length === 0) {
+      const systemMessage = personaManager.getSystemMessage();
+      conversationForLLM.unshift({ role: 'system', content: systemMessage });
+      logger.info('Added system message to new conversation (streaming)');
+    }
+
     // Add the new user message
     conversationForLLM.push({ role: 'user', content: message });
     conversation.push({ role: 'user', content: message });
@@ -408,6 +423,35 @@ router.delete('/history/:id', async (req, res) => {
     logger.error('Failed to delete conversation:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// POST /api/chat/reload-persona - Reload system message from file
+router.post('/reload-persona', async (req, res) => {
+  try {
+    const success = await personaManager.reloadPersona();
+    if (success) {
+      const systemMessage = personaManager.getSystemMessage();
+      logger.info('Persona reloaded successfully');
+      res.json({
+        message: 'Persona reloaded successfully',
+        systemMessage: systemMessage.substring(0, 100) + '...' // Preview
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to reload persona' });
+    }
+  } catch (error) {
+    logger.error('Failed to reload persona:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/chat/persona - Get current system message
+router.get('/persona', (req, res) => {
+  const systemMessage = personaManager.getSystemMessage();
+  res.json({
+    systemMessage,
+    personaFile: '/home/workspace/zo_chat_memories/initial_persona.json'
+  });
 });
 
 export default router;

@@ -34,6 +34,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 
 - **MCP Client** (`mcpClient.js`): Manages connection to Zo's MCP server, discovers available tools, and executes tool calls
 - **LLM Client** (`llmClient.js`): Handles GLM-4.7 API calls with function calling support
+- **Persona Manager** (`personaManager.js`): Loads and manages the system message from `initial_persona.json`
 - **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, and logs
 - **Logger** (`logger.js`): Winston-based logging with file rotation
 
@@ -229,6 +230,39 @@ The Zo MCP server provides 50+ tools including:
 - Persistent storage
 - Custom code execution
 
+## System Message / Persona
+
+The assistant's behavior is controlled by a system message loaded from `/home/workspace/zo_chat_memories/initial_persona.json`. This file is automatically created with a default persona on first run.
+
+### Customizing the Assistant Persona
+
+1. **Edit the persona file**:
+   ```bash
+   # The file is located at:
+   /home/workspace/zo_chat_memories/initial_persona.json
+   ```
+
+2. **File format**:
+   ```json
+   {
+     "systemMessage": "Your custom system message here...",
+     "metadata": {
+       "createdAt": "2026-01-28T12:00:00.000Z",
+       "version": "1.0",
+       "description": "Custom persona description"
+     }
+   }
+   ```
+
+3. **Reload without restart**:
+   ```bash
+   curl -X POST http://localhost:3001/api/chat/reload-persona
+   ```
+
+### Default Persona
+
+The default system message instructs the assistant to be a helpful AI with access to Zo Computer's cloud-based tools, explaining tool usage clearly and proactively using available tools to accomplish tasks efficiently.
+
 ## API Endpoints
 
 ### Chat
@@ -238,6 +272,11 @@ The Zo MCP server provides 50+ tools including:
 - `GET /api/chat/conversations` - List all conversations
 - `GET /api/chat/conversations/:id` - Get conversation history
 - `DELETE /api/chat/conversations/:id` - Delete conversation
+
+### Persona
+
+- `GET /api/chat/persona` - Get current system message
+- `POST /api/chat/reload-persona` - Reload system message from file
 
 ### Logs
 
@@ -322,7 +361,9 @@ zo_computer_chat/
 │   │   │   └── chat.js
 │   │   ├── services/
 │   │   │   ├── mcpClient.js
-│   │   │   └── llmClient.js
+│   │   │   ├── llmClient.js
+│   │   │   ├── personaManager.js
+│   │   │   └── chatPersistence.js
 │   │   ├── utils/
 │   │   │   └── logger.js
 │   │   └── index.js
@@ -345,6 +386,14 @@ zo_computer_chat/
 │   ├── package.json
 │   └── .env
 └── README.md
+
+External (runtime-created):
+/home/workspace/
+├── zo_chat_memories/
+│   ├── initial_persona.json
+│   └── active_chats.json
+└── zo_chat_history/
+    └── {conversationId}.json
 ```
 
 ### Adding New Features
