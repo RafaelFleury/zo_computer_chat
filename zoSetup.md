@@ -10,14 +10,14 @@ To run the app as a Zo Computer service:
 
    **Frontend:**
    ```bash
-   cd ../frontend
+   cd zo_computer_chat/frontend
    cp .env.production .env
    # Only edit the .env if you need to override the url. But make sure you copy the .production and not .example
    ```
 
    **Backend:**
    ```bash
-   cd zo_computer_chat/backend
+   cd ../backend
    npm install
    cp .env.example .env
    # Edit .env and add your API keys and backend settings
@@ -32,7 +32,7 @@ To run the app as a Zo Computer service:
    # Generate a secure password
    node generate-password.js
 
-   # Add the generated password to your .env file:
+   # Add the generated password to your .env file on the backend:
    # AUTH_USERNAME=admin
    # AUTH_PASSWORD=your_generated_password_here
    ```
