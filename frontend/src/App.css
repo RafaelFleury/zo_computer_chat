@@ -51,9 +51,19 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   position: relative;
+  transition: margin-left 0.3s ease, width 0.3s ease;
+}
+
+.app.sidebar-open {
   margin-left: 280px;
-  transition: margin-left 0.3s ease;
+  width: calc(100vw - 280px);
+}
+
+.app.sidebar-closed {
+  margin-left: 0;
+  width: 100vw;
 }
 
 /* Tabs */
@@ -166,4 +176,17 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .app.sidebar-open {
+    margin-left: 0;
+    width: 100vw;
+  }
+
+  .app.sidebar-closed {
+    margin-left: 0;
+    width: 100vw;
+  }
 }

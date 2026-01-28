@@ -10,6 +10,7 @@ function App() {
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const chatHistoryRef = useRef(null);
 
   // Refresh chat history (called after message sent or conversation deleted)
@@ -41,13 +42,14 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
       <Toast />
       <ChatHistory
         ref={chatHistoryRef}
         currentConversationId={conversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        onToggle={setSidebarOpen}
       />
 
       <div className="tabs">

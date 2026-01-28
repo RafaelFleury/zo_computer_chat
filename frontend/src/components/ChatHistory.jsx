@@ -2,11 +2,20 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { showToast } from './Toast';
 import './ChatHistory.css';
 
-const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation }, ref) => {
+const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation, onToggle }, ref) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(true);
+
+  // Notify parent when sidebar toggles
+  const handleToggle = () => {
+    const newState = !isOpen;
+    setIsOpen(newState);
+    if (onToggle) {
+      onToggle(newState);
+    }
+  };
 
   // Load conversation list
   const loadConversations = async () => {
@@ -120,7 +129,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
 
   return (
     <div className={`chat-history ${isOpen ? 'open' : 'closed'}`}>
-      <div className="chat-history-toggle" onClick={() => setIsOpen(!isOpen)}>
+      <div className="chat-history-toggle" onClick={handleToggle}>
         <span className="toggle-icon">{isOpen ? '←' : '→'}</span>
       </div>
 
