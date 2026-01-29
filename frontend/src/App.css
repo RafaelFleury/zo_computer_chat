@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap");
 
 * {
   box-sizing: border-box;
@@ -7,51 +8,78 @@
 }
 
 :root {
-  /* True Dark Theme - Black & White */
-  --bg-primary: #000000;
-  --bg-secondary: #0a0a0a;
-  --bg-tertiary: #141414;
-  --surface: #1a1a1a;
-  --surface-hover: #222222;
+  /* Base — True blacks with subtle warmth */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-tertiary: #1a1a1a;
 
-  /* Accent Colors - Only for highlights */
-  --accent-purple: #8b5cf6;
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-red: #ef4444;
-  --accent-pink: #ff8a9b;
-  --accent-pink-light: #ffb6c1;
+  /* Borders & dividers — More visible */
+  --border: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.2);
 
-  /* Text Colors - Pure white scale */
-  --text-primary: #ffffff;
-  --text-secondary: #d1d1d1;
-  --text-muted: #a0a0a0;
-  --text-dim: #707070;
+  /* Text hierarchy */
+  --text-primary: #f5f5f5;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #808080;
 
-  /* Border & Effects */
-  --border-color: #333333;
-  --border-accent: #555555;
-  --glow-purple: 0 0 20px rgba(139, 92, 246, 0.4);
-  --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.4);
+  /* Accent — Single color for interactive states */
+  --accent: #2d6cdf;
+  --accent-muted: rgba(45, 108, 223, 0.15);
+  --accent-glow: rgba(45, 108, 223, 0.3);
 
-  /* Gradients - For accents only */
-  --gradient-primary: linear-gradient(
-    135deg,
-    var(--accent-purple) 0%,
-    var(--accent-cyan) 100%
-  );
+  /* Semantic — Only for critical states */
+  --semantic-success: #22c55e;
+  --semantic-error: #ef4444;
+
+  /* Typography */
+  --font-display: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+
+  /* Type scale — Larger for readability */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.25rem;     /* 20px */
+  --text-xl: 1.75rem;     /* 28px */
+
+  /* Weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Line heights */
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* Transitions */
+  --transition-fast: 100ms ease-out;
+  --transition-base: 150ms ease-out;
+  --transition-slow: 200ms ease-out;
+}
+
+* {
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background-color var(--transition-base),
+    opacity var(--transition-base),
+    transform var(--transition-base);
 }
 
 body {
   margin: 0;
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Roboto",
-    sans-serif;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -71,8 +99,8 @@ body {
 }
 
 .app.sidebar-open {
-  margin-left: 280px;
-  width: calc(100vw - 280px);
+  margin-left: 220px;
+  width: calc(100vw - 220px);
 }
 
 .app.sidebar-closed {
@@ -80,80 +108,52 @@ body {
   width: 100vw;
 }
 
-/* Security Warning Banner */
-.security-warning-banner {
-  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-  border-bottom: 3px solid #b91c1c;
-  padding: 0;
-  position: relative;
-  z-index: 100;
-  animation: slideIn 0.3s ease;
-}
-
-.security-warning-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.warning-icon {
-  font-size: 1.5rem;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.warning-text {
-  color: #ffffff;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.warning-text strong {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+/* Security Warning Banner - Removed, using Toast instead */
 
 /* Tabs */
 .tabs {
   display: flex;
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 2px solid var(--border);
   position: relative;
   z-index: 10;
+  height: 48px;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0 var(--space-lg);
 }
 
 .tab {
-  flex: 1;
-  padding: 1.25rem 1.5rem;
+  padding: 0;
   border: none;
   background: transparent;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: all 0.3s ease;
   border-bottom: 3px solid transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  height: 100%;
 }
 
 .tab:hover {
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .tab.active {
   color: var(--text-primary);
-  border-bottom-color: var(--accent-purple);
-  background: var(--bg-tertiary);
+  border-bottom-color: var(--accent);
+}
+
+.connection-status {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* Tab Content */
@@ -176,28 +176,27 @@ body {
 
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
-  border-radius: 5px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-accent);
-  border-radius: 5px;
-  border: 2px solid var(--bg-tertiary);
+  background: var(--accent);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
+  background: var(--accent);
+  opacity: 0.8;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: var(--accent-muted);
   color: var(--text-primary);
 }
 
@@ -205,30 +204,12 @@ body {
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateX(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* Utility Classes */
-.gradient-text {
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 /* Responsive */

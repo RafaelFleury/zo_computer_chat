@@ -162,7 +162,7 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
       {isOpen && (
         <div className="chat-history-content">
           <div className="chat-history-header">
-            <h3>Chat History</h3>
+            <h3>Conversations</h3>
             <div className="header-buttons">
               <button
                 className="refresh-btn"

@@ -30,6 +30,7 @@ const ChatInterface = forwardRef(function ChatInterface(
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
   const [usage, setUsage] = useState(null);
+  const [showContext, setShowContext] = useState(false);
   const messagesEndRef = useRef(null);
   const idleTimeoutRef = useRef(null);
   const inputRef = useRef(null);
@@ -344,53 +345,15 @@ const ChatInterface = forwardRef(function ChatInterface(
       <div className="messages-container">
         {messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-role">
-              {msg.role === "user" ? "👤 You" : "🤖 Assistant"}
+            <div className="message-header">
+              <div className="message-role">
+                {msg.role === "user" ? "You" : "Zo"}
+              </div>
+              <div className="message-timestamp">
+                {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+              </div>
             </div>
             <div className="message-content">
-              {/* Show process steps for assistant messages */}
-              {msg.role === "assistant" &&
-                msg.process &&
-                msg.process.length > 0 && (
-                  <div className="process-timeline">
-                    {msg.process.map((step, i) => (
-                      <div key={i} className="process-step">
-                        <span className="step-indicator">›</span>
-                        <span className="step-text">{step.step}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              {/* Show tool calls as they happen */}
-              {msg.role === "assistant" &&
-                msg.toolCalls &&
-                msg.toolCalls.length > 0 && (
-                  <div className="tool-calls-live">
-                    {msg.toolCalls.map((tool, i) => (
-                      <div
-                        key={i}
-                        className={`tool-call-item ${tool.status || ""}`}
-                      >
-                        <span className="tool-icon">🔧</span>
-                        <span className="tool-name">{tool.toolName}</span>
-                        {tool.status === "starting" && (
-                          <span className="tool-status starting">⋯</span>
-                        )}
-                        {tool.status === "executing" && (
-                          <span className="tool-status executing">⏳</span>
-                        )}
-                        {tool.status === "completed" && (
-                          <span className="tool-status success">✓</span>
-                        )}
-                        {tool.status === "failed" && (
-                          <span className="tool-status failure">✗</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
               {/* Main content */}
               {msg.loading && !msg.content ? (
                 <div className="loading-indicator">
@@ -405,6 +368,18 @@ const ChatInterface = forwardRef(function ChatInterface(
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               ) : null}
+
+              {/* Tool calls footer - only show count after completion */}
+              {msg.role === "assistant" &&
+                !msg.loading &&
+                msg.toolCalls &&
+                msg.toolCalls.length > 0 && (
+                  <div className="tool-calls-footer">
+                    <div className="tool-calls-summary">
+                      ⚡ {msg.toolCalls.length} {msg.toolCalls.length === 1 ? 'tool' : 'tools'} used
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         ))}
@@ -414,14 +389,20 @@ const ChatInterface = forwardRef(function ChatInterface(
       {error && <div className="error-banner">{error}</div>}
 
       <form onSubmit={handleSubmit} className="input-form">
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message..."
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+          placeholder="Type a message..."
           disabled={loading}
           className="message-input"
+          rows="1"
         />
         <button
           type="submit"
@@ -431,20 +412,29 @@ const ChatInterface = forwardRef(function ChatInterface(
           <span>{loading ? "Sending..." : "Send"}</span>
         </button>
         {usage && (
-          <div className="context-footer">
-            <span className="context-stat">
-              Context: {usage.prompt_tokens?.toLocaleString() || 0} tokens
-            </span>
-            <span className="context-stat">
-              Completion: {usage.completion_tokens?.toLocaleString() || 0}{" "}
-              tokens
-            </span>
-            <span className="context-stat">
-              Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
-            </span>
-          </div>
+          <button
+            type="button"
+            className="context-toggle"
+            onClick={() => setShowContext(!showContext)}
+            title="Toggle token usage"
+          >
+            {usage.total_tokens?.toLocaleString() || 0}
+          </button>
         )}
       </form>
+      {showContext && usage && (
+        <div className="context-footer">
+          <span className="context-stat">
+            Prompt: {usage.prompt_tokens?.toLocaleString() || 0}
+          </span>
+          <span className="context-stat">
+            Completion: {usage.completion_tokens?.toLocaleString() || 0}
+          </span>
+          <span className="context-stat">
+            Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
+          </span>
+        </div>
+      )}
     </div>
   );
 });

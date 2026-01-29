@@ -63,7 +63,7 @@
 }
 
 .face-wrapper.clickable.active {
-  filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.3));
+  filter: drop-shadow(0 0 20px var(--accent-glow));
 }
 
 /* =============================================================================
@@ -81,7 +81,7 @@
 .hint-ring {
   width: 380px;
   height: 280px;
-  border: 3px solid var(--accent-purple);
+  border: 3px solid var(--accent);
   border-radius: 20px;
   position: absolute;
   top: 50%;
@@ -96,14 +96,14 @@
   bottom: -60px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--surface);
-  color: var(--accent-purple);
+  background: var(--bg-tertiary);
+  color: var(--accent);
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
-  border: 1px solid var(--accent-purple);
+  border: 1px solid var(--accent);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation: hintFloat 2s ease-in-out infinite;
 }
@@ -116,7 +116,7 @@
   transform: translateX(-50%);
   border-left: 8px solid transparent;
   border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--accent-purple);
+  border-bottom: 8px solid var(--accent);
 }
 
 @keyframes hintPulse {
@@ -195,46 +195,34 @@
    ============================================================================= */
 .facetime-footer {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 2rem;
-  background: transparent;
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--border);
   position: relative;
   z-index: 10;
+  height: 56px;
 }
 
 .footer-content {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  background: transparent;
+  gap: var(--space-md);
 }
 
 /* =============================================================================
-   STATUS INDICATOR - Centered in footer
+   STATUS INDICATOR - Left side in footer
    ============================================================================= */
 .facetime-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  background: var(--surface);
-  border-radius: 24px;
-  border: 1px solid var(--border-color);
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   color: var(--text-secondary);
-  transition: all 0.4s ease;
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  transition: all 0.4s ease;
-  flex-shrink: 0;
+  display: none;
 }
 
 .status-text {
@@ -242,88 +230,38 @@
 }
 
 /* Idle state */
-.facetime-status.status-idle .status-dot {
-  background: var(--accent-cyan);
-  animation: idlePulse 4s ease-in-out infinite;
+.facetime-status.status-idle .status-text {
+  color: var(--text-secondary);
 }
 
 /* Sleeping state */
-.facetime-status.status-sleeping {
-  border-color: var(--accent-purple);
-  background: rgba(139, 92, 246, 0.1);
-}
-
-.facetime-status.status-sleeping .status-dot {
-  background: var(--accent-purple);
-  animation: sleepPulse 3s ease-in-out infinite;
-  box-shadow: 0 0 8px var(--accent-purple);
-}
-
 .facetime-status.status-sleeping .status-text {
-  color: var(--accent-purple);
+  color: var(--text-tertiary);
 }
 
 /* Talking state */
-.facetime-status.status-talking {
-  border-color: var(--accent-emerald);
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.facetime-status.status-talking .status-dot {
-  background: var(--accent-emerald);
-  animation: activePulse 1.2s ease-in-out infinite;
-  box-shadow: 0 0 10px var(--accent-emerald);
-}
-
 .facetime-status.status-talking .status-text {
-  color: var(--accent-emerald);
+  color: var(--accent);
 }
 
 /* Thinking state */
-.facetime-status.status-thinking {
-  border-color: var(--accent-amber);
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.facetime-status.status-thinking .status-dot {
-  background: var(--accent-amber);
-  animation: thinkingPulse 1.5s ease-in-out infinite;
-  box-shadow: 0 0 10px var(--accent-amber);
-}
-
 .facetime-status.status-thinking .status-text {
-  color: var(--accent-amber);
+  color: var(--text-primary);
 }
 
 /* =============================================================================
-   ACTIVE TOOLS DISPLAY - Below status in footer
+   ACTIVE TOOLS DISPLAY - Right side in footer
    ============================================================================= */
 .active-tools {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
+  margin-left: auto;
 }
 
 .tool-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: rgba(245, 158, 11, 0.15);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: 16px;
-  font-size: 0.8rem;
-  color: var(--accent-amber);
-  animation: toolFadeIn 0.3s ease-out;
-}
-
-.tool-badge .tool-name {
-  font-weight: 500;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
 /* =============================================================================
@@ -344,106 +282,21 @@
   filter: blur(100px);
 }
 
-.ambient-glow[data-state="idle"] {
-  background: radial-gradient(
-    circle,
-    rgba(6, 182, 212, 0.2) 0%,
-    transparent 70%
-  );
-  animation: glowBreath 6s ease-in-out infinite;
-}
-
-.ambient-glow[data-state="sleeping"] {
-  background: radial-gradient(
-    circle,
-    rgba(139, 92, 246, 0.2) 0%,
-    transparent 70%
-  );
-  animation: glowSleep 8s ease-in-out infinite;
-}
-
-.ambient-glow[data-state="talking"] {
-  background: radial-gradient(
-    circle,
-    rgba(255, 138, 155, 0.3) 0%,
-    rgba(16, 185, 129, 0.15) 50%,
-    transparent 70%
-  );
-  animation: glowPulse 1.5s ease-in-out infinite;
-}
-
+.ambient-glow[data-state="idle"],
+.ambient-glow[data-state="sleeping"],
+.ambient-glow[data-state="talking"],
 .ambient-glow[data-state="thinking"] {
   background: radial-gradient(
     circle,
-    rgba(245, 158, 11, 0.25) 0%,
-    rgba(139, 92, 246, 0.15) 50%,
-    transparent 70%
+    var(--accent-glow) 0%,
+    transparent 60%
   );
-  animation: glowThink 3s ease-in-out infinite;
+  animation: glowBreath 6s ease-in-out infinite;
 }
 
 /* =============================================================================
    ANIMATIONS
    ============================================================================= */
-@keyframes idlePulse {
-  0%,
-  100% {
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-@keyframes sleepPulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05);
-  }
-}
-
-@keyframes activePulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1.15);
-  }
-}
-
-@keyframes thinkingPulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(0.85);
-  }
-}
-
-@keyframes toolFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes glowBreath {
   0%,
   100% {
@@ -453,42 +306,6 @@
   50% {
     transform: translate(-50%, -50%) scale(1.08);
     opacity: 0.35;
-  }
-}
-
-@keyframes glowSleep {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.2;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.05);
-    opacity: 0.3;
-  }
-}
-
-@keyframes glowPulse {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.35;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.1);
-    opacity: 0.5;
-  }
-}
-
-@keyframes glowThink {
-  0%,
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.3;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.05);
-    opacity: 0.45;
   }
 }
 
@@ -526,31 +343,5 @@
 }
 
 /* =============================================================================
-   BACKGROUND ENHANCEMENT
+   BACKGROUND ENHANCEMENT - Removed for minimal design
    ============================================================================= */
-.facetime-main::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(
-      ellipse at 50% 0%,
-      rgba(139, 92, 246, 0.04) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      ellipse at 0% 100%,
-      rgba(6, 182, 212, 0.02) 0%,
-      transparent 40%
-    ),
-    radial-gradient(
-      ellipse at 100% 100%,
-      rgba(245, 158, 11, 0.02) 0%,
-      transparent 40%
-    );
-  pointer-events: none;
-  z-index: 0;
-}

@@ -104,18 +104,7 @@ function App() {
     <div className={`app ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
       <Toast />
 
-      {/* Security Warning Banner */}
-      {!authEnabled && (
-        <div className="security-warning-banner">
-          <div className="security-warning-content">
-            <span className="warning-icon">⚠️</span>
-            <span className="warning-text">
-              <strong>WARNING:</strong> Authentication is DISABLED! This application is not secure for public access.
-              Set AUTH_PASSWORD in backend/.env to enable authentication.
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Security Warning - Removed banner, will show as Toast on first load if needed */}
 
       <ChatHistory
         ref={chatHistoryRef}
@@ -130,20 +119,21 @@ function App() {
           className={`tab ${activeTab === "chat" ? "active" : ""}`}
           onClick={() => setActiveTab("chat")}
         >
-          💬 Chat
+          Chat
         </button>
         <button
           className={`tab ${activeTab === "face" ? "active" : ""}`}
           onClick={() => setActiveTab("face")}
         >
-          🤖 Face
+          Face
         </button>
         <button
           className={`tab ${activeTab === "logs" ? "active" : ""}`}
           onClick={() => setActiveTab("logs")}
         >
-          📊 Logs
+          Logs
         </button>
+        <div className="connection-status"></div>
       </div>
 
       <div className="tab-content">

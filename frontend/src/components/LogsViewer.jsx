@@ -40,13 +40,13 @@ export default function LogsViewer({ isProcessing = false }) {
     }
   };
 
-  const getLogColor = (type) => {
+  const getLogTypeClass = (type) => {
     switch (type) {
-      case 'user_message': return '#3b82f6';
-      case 'assistant_message': return '#10b981';
-      case 'tool_call': return '#f59e0b';
-      case 'error': return '#ef4444';
-      default: return '#6b7280';
+      case 'user_message': return 'log-user';
+      case 'assistant_message': return 'log-assistant';
+      case 'tool_call': return 'log-tool';
+      case 'error': return 'log-error';
+      default: return 'log-default';
     }
   };
 
@@ -71,10 +71,10 @@ export default function LogsViewer({ isProcessing = false }) {
             Auto-refresh
           </label>
           <button onClick={fetchLogs} className="refresh-button">
-            🔄 Refresh
+            Refresh
           </button>
           <button onClick={handleClearLogs} className="clear-button">
-            🗑️ Clear
+            Clear
           </button>
         </div>
       </div>
@@ -84,9 +84,9 @@ export default function LogsViewer({ isProcessing = false }) {
           <div className="empty-state">No logs yet</div>
         ) : (
           logs.map((log, idx) => (
-            <div key={idx} className="log-entry" style={{ borderLeftColor: getLogColor(log.type) }}>
+            <div key={idx} className={`log-entry ${getLogTypeClass(log.type)}`}>
               <div className="log-header">
-                <span className="log-type" style={{ color: getLogColor(log.type) }}>
+                <span className="log-type">
                   {log.type}
                 </span>
                 <span className="log-timestamp">
@@ -98,7 +98,7 @@ export default function LogsViewer({ isProcessing = false }) {
                   <div className="tool-call-log">
                     <strong>Tool:</strong> {log.toolName}
                     <br />
-                    <strong>Status:</strong> {log.success ? '✓ Success' : '✗ Failed'}
+                    <strong>Status:</strong> {log.success ? 'Success' : 'Failed'}
                     {log.args && (
                       <>
                         <br />
@@ -139,7 +139,7 @@ export default function LogsViewer({ isProcessing = false }) {
                     )}
                     {log.toolCalls > 0 && (
                       <div className="tool-count">
-                        <small>🔧 {log.toolCalls} tool call(s)</small>
+                        <small>{log.toolCalls} tool call(s)</small>
                       </div>
                     )}
                   </div>

@@ -157,29 +157,20 @@ export default function FaceTimeView({
 
       {/* Fixed footer with status */}
       <div className="facetime-footer">
-        <div className="footer-content">
-          <div className={`facetime-status ${statusClass}`}>
-            <span className="status-dot" />
-            <span className="status-text">{statusMessage}</span>
-          </div>
-
-          {currentToolCalls.length > 0 &&
-            streamingState.status === "thinking" && (
-              <div className="active-tools">
-                {currentToolCalls
-                  .filter(
-                    (t) => t.status === "executing" || t.status === "starting",
-                  )
-                  .slice(0, 3)
-                  .map((tool, i) => (
-                    <div key={i} className="tool-badge">
-                      <span className="tool-icon">⚡</span>
-                      <span className="tool-name">{tool.toolName}</span>
-                    </div>
-                  ))}
-              </div>
-            )}
+        <div className={`facetime-status ${statusClass}`}>
+          <span className="status-text">{statusMessage}</span>
         </div>
+
+        {currentToolCalls.length > 0 &&
+          streamingState.status === "thinking" && (
+            <div className="active-tools">
+              <div className="tool-badge">
+                {currentToolCalls.filter(
+                  (t) => t.status === "executing" || t.status === "starting",
+                ).length} tools ⚡
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );
