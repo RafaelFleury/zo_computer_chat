@@ -24,6 +24,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [authEnabled, setAuthEnabled] = useState(true);
+  const [isFaceFullscreen, setIsFaceFullscreen] = useState(false);
   const chatHistoryRef = useRef(null);
   const chatInterfaceRef = useRef(null);
 
@@ -116,8 +117,13 @@ function App() {
     setDisplayMessages(newMessages);
   }, []);
 
+  // Handle fullscreen change from FaceTimeView
+  const handleFaceFullscreenChange = useCallback((isFullscreen) => {
+    setIsFaceFullscreen(isFullscreen);
+  }, []);
+
   return (
-    <div className={`app ${sidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
+    <div className={`app ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${isFaceFullscreen ? "face-fullscreen" : ""}`}>
       <Toast />
 
       {/* Security Warning - Removed banner, will show as Toast on first load if needed */}
@@ -186,6 +192,7 @@ function App() {
             messages={displayMessages}
             onSendMessage={handleSendMessage}
             isLoading={isProcessing}
+            onFullscreenChange={handleFaceFullscreenChange}
           />
         </div>
         <div

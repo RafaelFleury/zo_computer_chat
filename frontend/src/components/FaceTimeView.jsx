@@ -7,6 +7,7 @@ import "./FaceTimeView.css";
  * FaceTimeView - Container for the animated pixel face
  * Displays the face centered on screen with status in fixed footer
  * Click on face to toggle chat bubbles
+ * Double-click on face to toggle fullscreen mode
  */
 export default function FaceTimeView({
   streamingState = { status: "idle", lastUpdate: Date.now() },
@@ -15,11 +16,17 @@ export default function FaceTimeView({
   messages = [],
   onSendMessage,
   isLoading = false,
+  onFullscreenChange,
 }) {
   const [isSleeping, setIsSleeping] = useState(false);
   const [bubblesVisible, setBubblesVisible] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const sleepTimerRef = useRef(null);
   const containerRef = useRef(null);
+  
+  // Refs for double-click detection
+  const clickTimeoutRef = useRef(null);
+  const clickCountRef = useRef(0);
 
   // Handle sleep timer - sleep after 10 seconds of idle (but not when bubbles visible)
   useEffect(() => {
@@ -120,9 +127,38 @@ export default function FaceTimeView({
       : "";
   }, [messages]);
 
-  // Toggle bubbles on face click
+  // Handle face click with double-click detection
+  // Single click: toggle bubbles
+  // Double click: toggle fullscreen
   const handleFaceClick = useCallback(() => {
-    setBubblesVisible((prev) => !prev);
+    clickCountRef.current += 1;
+    
+    if (clickCountRef.current === 1) {
+      // Wait to see if a second click comes
+      clickTimeoutRef.current = setTimeout(() => {
+        // Single click - toggle bubbles
+        setBubblesVisible((prev) => !prev);
+        clickCountRef.current = 0;
+      }, 250); // 250ms window for double-click
+    } else if (clickCountRef.current === 2) {
+      // Double click - toggle fullscreen
+      clearTimeout(clickTimeoutRef.current);
+      clickCountRef.current = 0;
+      setIsFullscreen((prev) => {
+        const newValue = !prev;
+        onFullscreenChange?.(newValue);
+        return newValue;
+      });
+    }
+  }, [onFullscreenChange]);
+  
+  // Cleanup click timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Calculate initial bubble position (centered below avatar)
@@ -134,7 +170,7 @@ export default function FaceTimeView({
   }, [bubblesVisible]);
 
   return (
-    <div className="facetime-view" ref={containerRef}>
+    <div className={`facetime-view ${isFullscreen ? "fullscreen" : ""}`} ref={containerRef}>
       {/* Main content area with centered face */}
       <div className="facetime-main">
         <div className="facetime-container">
@@ -145,14 +181,18 @@ export default function FaceTimeView({
             tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && handleFaceClick()}
             aria-label={
-              bubblesVisible ? "Hide chat bubbles" : "Show chat bubbles"
+              isFullscreen 
+                ? "Double-click to exit fullscreen" 
+                : bubblesVisible 
+                  ? "Hide chat bubbles" 
+                  : "Show chat bubbles"
             }
           >
             <PixelFace animationState={animationState} />
           </div>
         </div>
 
-        {/* Chat bubble - only visible when toggled */}
+        {/* Chat bubble - only visible when toggled, works in fullscreen too */}
         {bubblesVisible && (
           <UserInputBubble
             onSend={onSendMessage}
@@ -166,23 +206,25 @@ export default function FaceTimeView({
         <div className="ambient-glow" data-state={animationState} />
       </div>
 
-      {/* Fixed footer with status */}
-      <div className="facetime-footer">
-        <div className={`facetime-status ${statusClass}`}>
-          <span className="status-text">{statusMessage}</span>
-        </div>
+      {/* Fixed footer with status - hidden in fullscreen */}
+      {!isFullscreen && (
+        <div className="facetime-footer">
+          <div className={`facetime-status ${statusClass}`}>
+            <span className="status-text">{statusMessage}</span>
+          </div>
 
-        {currentToolCalls.length > 0 &&
-          streamingState.status === "thinking" && (
-            <div className="active-tools">
-              <div className="tool-badge">
-                {currentToolCalls.filter(
-                  (t) => t.status === "executing" || t.status === "starting",
-                ).length} tools ⚡
+          {currentToolCalls.length > 0 &&
+            streamingState.status === "thinking" && (
+              <div className="active-tools">
+                <div className="tool-badge">
+                  {currentToolCalls.filter(
+                    (t) => t.status === "executing" || t.status === "starting",
+                  ).length} tools ⚡
+                </div>
               </div>
-            </div>
-          )}
-      </div>
+            )}
+        </div>
+      )}
     </div>
   );
 }

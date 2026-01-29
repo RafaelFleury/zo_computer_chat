@@ -224,3 +224,23 @@ body {
     width: 100vw;
   }
 }
+
+/* =============================================================================
+   FACE FULLSCREEN MODE - Hide header and sidebar
+   ============================================================================= */
+.app.face-fullscreen {
+  margin-left: 0 !important;
+  width: 100vw !important;
+}
+
+.app.face-fullscreen .tabs {
+  display: none;
+}
+
+.app.face-fullscreen .chat-history {
+  display: none;
+}
+
+.app.face-fullscreen .tab-content {
+  height: 100vh;
+}
