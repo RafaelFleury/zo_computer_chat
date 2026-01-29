@@ -7,6 +7,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **Advanced LLM**: Powered by GLM-4.7 with OpenAI-compatible API
 - **MCP Integration**: Full access to Zo Computer's 50+ tools via Model Context Protocol
 - **Real-time Chat**: Clean, responsive chat interface with markdown support
+- **SQLite Persistence**: Fast, reliable conversation storage with ACID guarantees
 - **Comprehensive Logging**: Detailed logs of all LLM requests, MCP tool calls, and system events
 - **Tool Visualization**: See which Zo tools are being used in real-time
 - **Token Tracking**: Monitor API usage and token consumption
@@ -35,6 +36,9 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **MCP Client** (`mcpClient.js`): Manages connection to Zo's MCP server, discovers available tools, and executes tool calls
 - **LLM Client** (`llmClient.js`): Handles GLM-4.7 API calls with function calling support
 - **Persona Manager** (`personaManager.js`): Loads and manages the system message from `initial_persona.json`
+- **Chat Persistence** (`chatPersistence.js`): SQLite-based conversation storage with transactions
+- **Database Manager** (`database.js`): Singleton SQLite connection with WAL mode
+- **Schema Service** (`schemaService.js`): Database schema initialization and migrations
 - **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, and logs
 - **Logger** (`logger.js`): Winston-based logging with file rotation
 
@@ -128,6 +132,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 | `MODEL_NAME` | No | `glm-4.7` | GLM model to use (see Available Models section) |
 | `ZO_MCP_URL` | No | `https://api.zo.computer/mcp` | Zo Computer MCP server endpoint |
 | `ZAI_API_URL` | No | `https://api.z.ai/api/coding/paas/v4` | Z.AI API endpoint for LLM requests |
+| `DB_PATH` | No | `backend/data/zo_chat.db` | SQLite database path (relative to project root) |
 
 #### Frontend Environment Variables
 
@@ -331,6 +336,52 @@ The Zo MCP server provides 50+ tools including:
 - Persistent storage
 - Custom code execution
 
+## Database
+
+### SQLite Persistence
+
+Conversations and messages are stored in a local SQLite database with the following features:
+
+- **WAL Mode**: Write-Ahead Logging for better concurrency (2-5x faster writes)
+- **ACID Transactions**: Atomic operations ensure data consistency
+- **Soft Deletes**: Deleted conversations can be recovered if needed
+- **Indexed Queries**: Fast conversation listing and message retrieval
+
+### Database Files
+
+The database creates three files in `backend/data/`:
+
+- **`zo_chat.db`**: Main database file containing all data
+- **`zo_chat.db-wal`**: Write-Ahead Log (temporary, holds new writes)
+- **`zo_chat.db-shm`**: Shared memory index (temporary, coordinates WAL)
+
+### Schema
+
+**conversations** table:
+- `id`: Conversation identifier
+- `created_at`: Creation timestamp
+- `last_message_at`: Last activity timestamp
+- `message_count`: Number of messages
+- `context_usage`: Token usage (JSON)
+- `deleted_at`: Soft delete timestamp
+- `updated_at`: Last update timestamp
+
+**messages** table:
+- `id`: Auto-increment primary key
+- `conversation_id`: Foreign key to conversations
+- `role`: Message role (system, user, assistant, tool)
+- `content`: Message text content
+- `tool_calls`: Frontend format tool calls (JSON)
+- `tool_calls_llm`: OpenAI format tool calls (JSON)
+- `tool_call_id`: Tool call identifier
+- `name`: Tool name
+- `sequence_number`: Message order in conversation
+- `created_at`: Message timestamp
+
+### Backup
+
+To backup your conversations, copy the entire `backend/data/` directory. For best results, stop the server first or use SQLite's backup API.
+
 ## System Message / Persona
 
 The assistant's behavior is controlled by a system message loaded from `/home/workspace/zo_chat_memories/initial_persona.json`. This file is automatically created with a default persona on first run.
@@ -507,11 +558,17 @@ zo_computer_chat/
 │   │   │   ├── mcpClient.js
 │   │   │   ├── llmClient.js
 │   │   │   ├── personaManager.js
-│   │   │   └── chatPersistence.js
+│   │   │   ├── chatPersistence.js
+│   │   │   ├── database.js
+│   │   │   └── schemaService.js
 │   │   ├── utils/
 │   │   │   └── logger.js
 │   │   └── index.js
 │   ├── public/              # Frontend build output (production)
+│   ├── data/                # SQLite database storage
+│   │   ├── zo_chat.db
+│   │   ├── zo_chat.db-wal
+│   │   └── zo_chat.db-shm
 │   ├── logs/
 │   ├── package.json
 │   └── .env
@@ -535,13 +592,10 @@ zo_computer_chat/
 ├── stop.sh                  # Stop all processes
 └── README.md
 
-External (runtime-created):
+External (Zo filesystem - runtime-created):
 /home/workspace/
-├── zo_chat_memories/
-│   ├── initial_persona.json
-│   └── active_chats.json
-└── zo_chat_history/
-    └── {conversationId}.json
+└── zo_chat_memories/
+    └── initial_persona.json
 ```
 
 ### Adding New Features

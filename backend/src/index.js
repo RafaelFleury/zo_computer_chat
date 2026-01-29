@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import basicAuth from 'express-basic-auth';
 import bcrypt from 'bcryptjs';
 import { logger } from './utils/logger.js';
+import { databaseManager } from './services/database.js';
+import { schemaService } from './services/schemaService.js';
 import { zoMCP } from './services/mcpClient.js';
 import { llmClient } from './services/llmClient.js';
 import { personaManager } from './services/personaManager.js';
@@ -108,7 +110,12 @@ async function start() {
 
     logger.info('Starting Zo Chat Backend...');
 
-    // Initialize MCP client first (required for persona manager)
+    // Initialize database FIRST
+    databaseManager.connect();
+    schemaService.initialize();
+    logger.info('Database initialized');
+
+    // Initialize MCP client (required for persona manager)
     await zoMCP.connect(process.env.ZO_API_KEY);
 
     // Initialize Persona Manager (depends on MCP)
@@ -136,12 +143,14 @@ async function start() {
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
   await zoMCP.disconnect();
+  databaseManager.close();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully...');
   await zoMCP.disconnect();
+  databaseManager.close();
   process.exit(0);
 });
 

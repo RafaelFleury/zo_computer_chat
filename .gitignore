@@ -19,6 +19,12 @@ build/
 .vite/
 backend/public/
 
+# Database
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+
 # IDE
 .vscode/
 .idea/

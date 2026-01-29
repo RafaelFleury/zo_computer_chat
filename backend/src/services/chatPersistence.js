@@ -1,15 +1,10 @@
-import { zoMCP } from './mcpClient.js';
+import { databaseManager } from './database.js';
 import { logger } from '../utils/logger.js';
 
 class ChatPersistence {
   constructor() {
-    this.memoriesPath = '/home/workspace/zo_chat_memories';
-    this.historyPath = '/home/workspace/zo_chat_history';
-    this.activeChatsFile = `${this.memoriesPath}/active_chats.json`;
     this.workspaceRoot = '/home/workspace';
     this.initialized = false;
-    // Mutex for active_chats.json to prevent race conditions
-    this.activeChatsLock = Promise.resolve();
   }
 
   // Validate path is within workspace for safety
@@ -20,22 +15,6 @@ class ChatPersistence {
     return filePath;
   }
 
-  // Acquire lock for active_chats.json operations to prevent race conditions
-  async withActiveChatsLock(operation) {
-    const previousLock = this.activeChatsLock;
-    let resolveLock;
-    this.activeChatsLock = new Promise(resolve => {
-      resolveLock = resolve;
-    });
-
-    try {
-      await previousLock;
-      return await operation();
-    } finally {
-      resolveLock();
-    }
-  }
-
   // Initialize the chat persistence system
   async initialize() {
     if (this.initialized) return;
@@ -43,21 +22,10 @@ class ChatPersistence {
     try {
       logger.info('Initializing chat persistence system...');
 
-      // Validate paths are within workspace
-      this.validatePath(this.memoriesPath);
-      this.validatePath(this.historyPath);
-
-      // Try to read active_chats.json with lock protection
-      await this.withActiveChatsLock(async () => {
-        try {
-          const activeChats = await this._loadActiveChatsUnsafe();
-          logger.info(`Active chats file loaded: ${activeChats.chats?.length || 0} chats`);
-        } catch (error) {
-          // File doesn't exist, create fresh
-          logger.info('Active chats file not found, creating fresh system...');
-          await this._saveActiveChatsUnsafe({ chats: [], lastUpdated: new Date().toISOString() });
-        }
-      });
+      // Ensure database is connected
+      if (!databaseManager.isConnected()) {
+        throw new Error('Database not connected. Initialize database first.');
+      }
 
       this.initialized = true;
       logger.info('Chat persistence system initialized');
@@ -72,162 +40,69 @@ class ChatPersistence {
     return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // Save active chats list (private - always use through lock)
-  async _saveActiveChatsUnsafe(activeChatsData) {
-    try {
-      this.validatePath(this.activeChatsFile);
-
-      const content = JSON.stringify(activeChatsData, null, 2);
-
-      await zoMCP.callTool('create_or_rewrite_file', {
-        target_file: this.activeChatsFile,
-        content
-      });
-
-      logger.info(`Active chats list updated: ${activeChatsData.chats.length} chats`);
-    } catch (error) {
-      logger.error('Failed to save active chats list:', error);
-      throw error;
-    }
-  }
-
-  // Load active chats list (private - always use through lock)
-  async _loadActiveChatsUnsafe() {
-    try {
-      this.validatePath(this.activeChatsFile);
-
-      const result = await zoMCP.callTool('read_file', {
-        target_file: this.activeChatsFile,
-        text_read_entire_file: 'true'
-      });
-
-      let content = result.content?.[0]?.text || '{"chats":[],"lastUpdated":""}';
-
-      // Log raw content for debugging
-      logger.info('Raw active_chats content:', {
-        type: typeof content,
-        length: content.length,
-        preview: content.substring(0, 200)
-      });
-
-      // Try to parse as JSON first
-      try {
-        const directParse = JSON.parse(content);
-        // If it parsed successfully and is our expected format, use it
-        if (directParse && typeof directParse === 'object' && !Array.isArray(directParse)) {
-          return directParse;
-        }
-        // If it's an array (MCP wrapping), join and re-parse
-        if (Array.isArray(directParse)) {
-          content = directParse.join('\n');
-          return JSON.parse(content);
-        }
-      } catch (e) {
-        // If direct parse fails, try cleaning the content
-        logger.warn('Direct JSON parse failed, attempting to clean content:', e.message);
-
-        // Remove any non-JSON content (sometimes MCP adds extra text)
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          content = jsonMatch[0];
-          return JSON.parse(content);
-        }
-
-        throw e;
-      }
-
-      return JSON.parse(content);
-    } catch (error) {
-      logger.error('Failed to load active chats list:', error);
-      // Return empty list if file doesn't exist
-      return { chats: [], lastUpdated: new Date().toISOString() };
-    }
-  }
-
-  // Add chat to active list (with lock protection)
-  async addToActiveChats(conversationId) {
-    return this.withActiveChatsLock(async () => {
-      try {
-        const activeChats = await this._loadActiveChatsUnsafe();
-
-        if (!activeChats.chats.includes(conversationId)) {
-          activeChats.chats.push(conversationId);
-          activeChats.lastUpdated = new Date().toISOString();
-          await this._saveActiveChatsUnsafe(activeChats);
-          logger.info(`Added ${conversationId} to active chats`);
-        }
-      } catch (error) {
-        logger.error(`Failed to add ${conversationId} to active chats:`, error);
-        throw error;
-      }
-    });
-  }
-
-  // Remove chat from active list (with lock protection)
-  async removeFromActiveChats(conversationId) {
-    return this.withActiveChatsLock(async () => {
-      try {
-        const activeChats = await this._loadActiveChatsUnsafe();
-
-        const index = activeChats.chats.indexOf(conversationId);
-        if (index > -1) {
-          activeChats.chats.splice(index, 1);
-          activeChats.lastUpdated = new Date().toISOString();
-          await this._saveActiveChatsUnsafe(activeChats);
-          logger.info(`Removed ${conversationId} from active chats`);
-        }
-      } catch (error) {
-        logger.error(`Failed to remove ${conversationId} from active chats:`, error);
-        throw error;
-      }
-    });
-  }
-
-  // Save conversation to Zo filesystem as JSON
+  // Save conversation to SQLite database
   async saveConversation(conversationId, messages, metadata = {}) {
     try {
       await this.initialize();
 
-      const filePath = `${this.historyPath}/${conversationId}.json`;
+      const db = databaseManager.getConnection();
 
-      // Validate path is within workspace
-      this.validatePath(filePath);
+      logger.info(`Saving conversation to database: ${conversationId}`);
 
-      // Try to load existing conversation to preserve metadata like createdAt
-      let existingMetadata = {};
-      try {
-        const existing = await this.loadConversation(conversationId);
-        existingMetadata = existing.metadata || {};
-      } catch (error) {
-        // File doesn't exist yet, that's fine
-      }
+      // Use transaction for atomic save
+      const saveTransaction = db.transaction(() => {
+        // Check if conversation exists to preserve created_at
+        const existing = db.prepare('SELECT created_at FROM conversations WHERE id = ?').get(conversationId);
+        const createdAt = existing?.created_at || metadata.createdAt || new Date().toISOString();
 
-      const conversationData = {
-        id: conversationId,
-        messages,
-        metadata: {
-          createdAt: existingMetadata.createdAt || metadata.createdAt || new Date().toISOString(),
-          lastMessageAt: metadata.lastMessageAt || new Date().toISOString(),
-          messageCount: messages.length,
-          contextUsage: metadata.contextUsage || existingMetadata.contextUsage || null
-        }
-      };
+        // Upsert conversation metadata
+        const upsertConversation = db.prepare(`
+          INSERT INTO conversations (id, created_at, last_message_at, message_count, context_usage, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(id) DO UPDATE SET
+            last_message_at = excluded.last_message_at,
+            message_count = excluded.message_count,
+            context_usage = excluded.context_usage,
+            updated_at = CURRENT_TIMESTAMP
+        `);
 
-      const content = JSON.stringify(conversationData, null, 2);
+        upsertConversation.run(
+          conversationId,
+          createdAt,
+          metadata.lastMessageAt || new Date().toISOString(),
+          messages.length,
+          metadata.contextUsage ? JSON.stringify(metadata.contextUsage) : null
+        );
 
-      logger.info(`Saving conversation to Zo: ${filePath}`);
+        // Delete old messages for this conversation
+        const deleteMessages = db.prepare('DELETE FROM messages WHERE conversation_id = ?');
+        deleteMessages.run(conversationId);
 
-      await zoMCP.callTool('create_or_rewrite_file', {
-        target_file: filePath,
-        content
+        // Insert all messages
+        const insertMessage = db.prepare(`
+          INSERT INTO messages (
+            conversation_id, role, content, tool_calls, tool_calls_llm,
+            tool_call_id, name, sequence_number
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        messages.forEach((message, index) => {
+          insertMessage.run(
+            conversationId,
+            message.role,
+            message.content || null,
+            message.toolCalls ? JSON.stringify(message.toolCalls) : null,
+            message.tool_calls ? JSON.stringify(message.tool_calls) : null,
+            message.tool_call_id || null,
+            message.name || null,
+            index
+          );
+        });
       });
 
-      // Add to active chats if it's a new conversation
-      if (!metadata.skipActiveUpdate) {
-        await this.addToActiveChats(conversationId);
-      }
+      saveTransaction();
 
-      logger.info(`Conversation saved successfully: ${conversationId}`);
+      logger.info(`Conversation saved successfully: ${conversationId} (${messages.length} messages)`);
       return true;
     } catch (error) {
       logger.error(`Failed to save conversation ${conversationId}:`, error);
@@ -240,120 +115,105 @@ class ChatPersistence {
     try {
       await this.initialize();
 
-      logger.info('Listing active conversations from Zo');
+      logger.info('Listing active conversations from database');
 
-      // Load active chats list with lock protection
-      const activeChats = await this.withActiveChatsLock(async () => {
-        return await this._loadActiveChatsUnsafe();
-      });
+      const db = databaseManager.getConnection();
 
-      if (!activeChats.chats || activeChats.chats.length === 0) {
-        logger.info('No active conversations found');
-        return [];
-      }
-
-      // Load metadata for each active chat
-      const conversations = [];
-      for (const chatId of activeChats.chats) {
-        try {
-          const filePath = `${this.historyPath}/${chatId}.json`;
-          const result = await zoMCP.callTool('read_file', {
-            target_file: filePath,
-            text_read_entire_file: 'true'
-          });
-
-          let content = result.content?.[0]?.text || '{}';
-
-          // Parse JSON
-          let conversationData;
-          try {
-            const directParse = JSON.parse(content);
-            if (Array.isArray(directParse)) {
-              content = directParse.join('\n');
-              conversationData = JSON.parse(content);
-            } else {
-              conversationData = directParse;
-            }
-          } catch (e) {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              conversationData = JSON.parse(jsonMatch[0]);
-            } else {
-              throw e;
-            }
-          }
-
-          // Extract timestamp from ID for sorting
-          const timestamp = parseInt(chatId.split('_')[1]);
-
-          conversations.push({
-            id: chatId,
-            timestamp,
-            createdAt: conversationData.metadata?.createdAt || new Date(timestamp).toISOString(),
-            messageCount: conversationData.metadata?.messageCount || conversationData.messages?.length || 0
-          });
-        } catch (error) {
-          logger.error(`Error loading conversation ${chatId}:`, error);
-          // If file is corrupted/missing, remove from active list
-          await this.removeFromActiveChats(chatId);
-        }
-      }
-
-      // Sort by most recent first
-      conversations.sort((a, b) => b.timestamp - a.timestamp);
+      // Query all non-deleted conversations ordered by last message
+      const conversations = db.prepare(`
+        SELECT id, created_at, last_message_at, message_count
+        FROM conversations
+        WHERE deleted_at IS NULL
+        ORDER BY last_message_at DESC
+      `).all();
 
       logger.info(`Found ${conversations.length} active conversations`);
-      return conversations;
+
+      // Transform to expected format
+      return conversations.map(conv => {
+        // Extract timestamp from ID for backward compatibility
+        const timestamp = parseInt(conv.id.split('_')[1]);
+
+        return {
+          id: conv.id,
+          timestamp,
+          createdAt: conv.created_at,
+          messageCount: conv.message_count
+        };
+      });
     } catch (error) {
       logger.error('Failed to list conversations:', error);
       return [];
     }
   }
 
-  // Load conversation from Zo filesystem
+  // Load conversation from SQLite database
   async loadConversation(conversationId) {
     try {
       await this.initialize();
 
-      const filePath = `${this.historyPath}/${conversationId}.json`;
+      logger.info(`Loading conversation from database: ${conversationId}`);
 
-      // Validate path is within workspace
-      this.validatePath(filePath);
+      const db = databaseManager.getConnection();
 
-      logger.info(`Loading conversation from Zo: ${filePath}`);
+      // Load conversation metadata
+      const conversation = db.prepare(`
+        SELECT id, created_at, last_message_at, message_count, context_usage
+        FROM conversations
+        WHERE id = ? AND deleted_at IS NULL
+      `).get(conversationId);
 
-      const result = await zoMCP.callTool('read_file', {
-        target_file: filePath,
-        text_read_entire_file: 'true'
-      });
-
-      let content = result.content?.[0]?.text || '{}';
-
-      // Try to parse as JSON
-      let conversationData;
-      try {
-        const directParse = JSON.parse(content);
-        // If it's an array (MCP wrapping), join and re-parse
-        if (Array.isArray(directParse)) {
-          content = directParse.join('\n');
-          conversationData = JSON.parse(content);
-        } else {
-          conversationData = directParse;
-        }
-      } catch (e) {
-        // Try to extract JSON from content
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          conversationData = JSON.parse(jsonMatch[0]);
-        } else {
-          throw e;
-        }
+      if (!conversation) {
+        throw new Error(`Conversation ${conversationId} not found`);
       }
 
-      logger.info(`Conversation loaded: ${conversationId} (${conversationData.messages?.length || 0} messages)`);
+      // Load messages ordered by sequence_number
+      const messageRows = db.prepare(`
+        SELECT role, content, tool_calls, tool_calls_llm, tool_call_id, name
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY sequence_number ASC
+      `).all(conversationId);
+
+      // Parse JSON fields back to objects
+      const messages = messageRows.map(row => {
+        const message = {
+          role: row.role
+        };
+
+        if (row.content) {
+          message.content = row.content;
+        }
+
+        if (row.tool_calls) {
+          message.toolCalls = JSON.parse(row.tool_calls);
+        }
+
+        if (row.tool_calls_llm) {
+          message.tool_calls = JSON.parse(row.tool_calls_llm);
+        }
+
+        if (row.tool_call_id) {
+          message.tool_call_id = row.tool_call_id;
+        }
+
+        if (row.name) {
+          message.name = row.name;
+        }
+
+        return message;
+      });
+
+      logger.info(`Conversation loaded: ${conversationId} (${messages.length} messages)`);
+
       return {
-        messages: conversationData.messages || [],
-        metadata: conversationData.metadata || {}
+        messages,
+        metadata: {
+          createdAt: conversation.created_at,
+          lastMessageAt: conversation.last_message_at,
+          messageCount: conversation.message_count,
+          contextUsage: conversation.context_usage ? JSON.parse(conversation.context_usage) : null
+        }
       };
     } catch (error) {
       logger.error(`Failed to load conversation ${conversationId}:`, error);
@@ -361,30 +221,27 @@ class ChatPersistence {
     }
   }
 
-  // Delete conversation (remove from active list and file)
+  // Delete conversation (soft delete)
   async deleteConversation(conversationId) {
     try {
       await this.initialize();
 
-      const filePath = `${this.historyPath}/${conversationId}.json`;
+      logger.info(`Deleting conversation: ${conversationId}`);
 
-      // Validate path is within workspace
-      this.validatePath(filePath);
+      const db = databaseManager.getConnection();
 
-      logger.info(`Deleting conversation: ${filePath}`);
+      // Soft delete: set deleted_at timestamp
+      const deleteStmt = db.prepare(`
+        UPDATE conversations
+        SET deleted_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `);
 
-      // Remove from active chats list
-      await this.removeFromActiveChats(conversationId);
+      const result = deleteStmt.run(conversationId);
 
-      // Delete the file
-      try {
-        await zoMCP.callTool('delete_file', {
-          target_file: filePath
-        });
-        logger.info(`Conversation file deleted: ${conversationId}`);
-      } catch (error) {
-        // File might already be deleted, that's okay
-        logger.warn(`Could not delete file ${filePath}:`, error.message);
+      if (result.changes === 0) {
+        logger.warn(`Conversation ${conversationId} not found or already deleted`);
+        return false;
       }
 
       logger.info(`Conversation deleted: ${conversationId}`);
@@ -398,14 +255,34 @@ class ChatPersistence {
   // Get conversation metadata
   async getConversationMetadata(conversationId) {
     try {
-      const messages = await this.loadConversation(conversationId);
+      const db = databaseManager.getConnection();
+
+      const conversation = db.prepare(`
+        SELECT id, created_at, message_count
+        FROM conversations
+        WHERE id = ? AND deleted_at IS NULL
+      `).get(conversationId);
+
+      if (!conversation) {
+        return null;
+      }
+
+      // Get first message for preview
+      const firstMessage = db.prepare(`
+        SELECT content
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY sequence_number ASC
+        LIMIT 1
+      `).get(conversationId);
+
       const timestamp = parseInt(conversationId.split('_')[1]);
 
       return {
         id: conversationId,
-        createdAt: new Date(timestamp).toISOString(),
-        messageCount: messages.length,
-        preview: messages[0]?.content.substring(0, 100) + '...' || 'Empty conversation'
+        createdAt: conversation.created_at,
+        messageCount: conversation.message_count,
+        preview: firstMessage?.content?.substring(0, 100) + '...' || 'Empty conversation'
       };
     } catch (error) {
       logger.error(`Failed to get metadata for ${conversationId}:`, error);
