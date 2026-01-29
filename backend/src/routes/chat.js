@@ -98,11 +98,11 @@ router.post('/', async (req, res) => {
       toolCalls: toolCalls.length
     });
 
-    // Auto-save conversation to Zo filesystem
+    // Auto-save conversation to database
     try {
       await chatPersistence.saveConversation(conversationId, conversation, {
-        createdAt: Date.now(),
-        lastMessageAt: Date.now(),
+        // Don't pass createdAt - let saveConversation preserve existing value
+        lastMessageAt: new Date().toISOString(),
         contextUsage: response.usage
       });
       logger.info(`Conversation auto-saved: ${conversationId}`);
@@ -181,24 +181,43 @@ router.post('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
 
     const toolCalls = [];
+    let clientDisconnected = false;
+
+    // Detect client disconnect
+    req.on('close', () => {
+      clientDisconnected = true;
+      logger.warn(`Client disconnected during streaming: ${conversationId}`);
+    });
 
     // Stream response with full conversation history
     const result = await llmClient.streamChat(
       conversationForLLM,
       (chunk) => {
-        // Send chunk to client
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        // Send chunk to client (ignore errors if client disconnected)
+        try {
+          if (!clientDisconnected) {
+            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          }
+        } catch (err) {
+          logger.warn('Failed to write chunk to client (likely disconnected):', err.message);
+        }
       },
       (toolCallData) => {
         // Log tool call
         addLog('tool_call', toolCallData);
         toolCalls.push(toolCallData);
 
-        // Notify client about tool call
-        res.write(`data: ${JSON.stringify({
-          type: 'tool_call',
-          ...toolCallData
-        })}\n\n`);
+        // Notify client about tool call (ignore errors if client disconnected)
+        try {
+          if (!clientDisconnected) {
+            res.write(`data: ${JSON.stringify({
+              type: 'tool_call',
+              ...toolCallData
+            })}\n\n`);
+          }
+        } catch (err) {
+          logger.warn('Failed to write tool call to client (likely disconnected):', err.message);
+        }
       }
     );
 
@@ -215,18 +234,22 @@ router.post('/stream', async (req, res) => {
     });
 
     // Send usage info before done event
-    if (result.usage) {
-      res.write(`data: ${JSON.stringify({
-        type: 'usage',
-        usage: result.usage
-      })}\n\n`);
+    if (result.usage && !clientDisconnected) {
+      try {
+        res.write(`data: ${JSON.stringify({
+          type: 'usage',
+          usage: result.usage
+        })}\n\n`);
+      } catch (err) {
+        logger.warn('Failed to write usage to client (likely disconnected):', err.message);
+      }
     }
 
-    // Auto-save conversation to Zo filesystem
+    // Auto-save conversation to database (ALWAYS save, even if client disconnected)
     try {
       await chatPersistence.saveConversation(conversationId, conversation, {
-        createdAt: Date.now(),
-        lastMessageAt: Date.now(),
+        // Don't pass createdAt - let saveConversation preserve existing value
+        lastMessageAt: new Date().toISOString(),
         contextUsage: result.usage
       });
       logger.info(`Conversation auto-saved: ${conversationId}`);
@@ -235,9 +258,17 @@ router.post('/stream', async (req, res) => {
       // Don't fail the request if save fails
     }
 
-    // Send completion event
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-    res.end();
+    // Send completion event (only if client still connected)
+    if (!clientDisconnected) {
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+        res.end();
+      } catch (err) {
+        logger.warn('Failed to send done event (client disconnected):', err.message);
+      }
+    } else {
+      logger.info(`Stream completed but client disconnected: ${conversationId}`);
+    }
 
   } catch (error) {
     logger.error('Streaming chat failed', error);
@@ -399,11 +430,25 @@ router.get('/history/:id', async (req, res) => {
 });
 
 // POST /api/chat/history/new - Create new conversation
-router.post('/history/new', (req, res) => {
-  const conversationId = chatPersistence.generateConversationId();
-  conversations.set(conversationId, []);
-  logger.info(`New conversation created: ${conversationId}`);
-  res.json({ conversationId });
+router.post('/history/new', async (req, res) => {
+  try {
+    const conversationId = chatPersistence.generateConversationId();
+    conversations.set(conversationId, []);
+
+    // Immediately save to database with empty messages
+    const now = new Date().toISOString();
+    await chatPersistence.saveConversation(conversationId, [], {
+      createdAt: now,
+      lastMessageAt: now,
+      contextUsage: null
+    });
+
+    logger.info(`New conversation created and saved: ${conversationId}`);
+    res.json({ conversationId });
+  } catch (error) {
+    logger.error('Failed to create new conversation:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // DELETE /api/chat/history/:id - Delete conversation from Zo

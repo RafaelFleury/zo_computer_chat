@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(./start.sh)"
+      "Bash(./start.sh)",
+      "Bash(sqlite3:*)",
+      "Bash(node:*)",
+      "Bash(./stop.sh)",
+      "Bash(curl:*)"
     ]
   }
 }

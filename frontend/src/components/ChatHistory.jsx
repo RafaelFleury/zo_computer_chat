@@ -96,9 +96,34 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
     }
   };
 
-  // Format date
-  const formatDate = (isoString) => {
-    const date = new Date(isoString);
+  // Format date - handles both ISO strings and numeric timestamps
+  const formatDate = (dateValue) => {
+    if (!dateValue) {
+      return 'Unknown date';
+    }
+
+    // If it's already a number, use it as milliseconds timestamp
+    if (typeof dateValue === 'number') {
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) {
+        return 'Unknown date';
+      }
+      return formatRelativeTime(date);
+    }
+
+    // If it's a string, try to parse as ISO date first
+    const date = new Date(dateValue);
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Unknown date';
+    }
+
+    return formatRelativeTime(date);
+  };
+
+  // Helper function to format relative time
+  const formatRelativeTime = (date) => {
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
