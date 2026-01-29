@@ -402,52 +402,59 @@ const ChatInterface = forwardRef(function ChatInterface(
       </div>
 
       <div className="messages-container">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.role}`}>
-            <div className="message-header">
-              <div className="message-role">
-                {msg.role === "user" ? "You" : "Zo"}
-              </div>
-              <div className="message-timestamp">
-                {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-              </div>
-            </div>
-            <div className="message-content">
-              {/* Main content */}
-              {msg.loading && !msg.content ? (
-                <div className="loading-indicator">
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                </div>
-              ) : msg.error ? (
-                <div className="error-message">{msg.content}</div>
-              ) : msg.content ? (
-                <>
-                  <div className="message-text">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
-                  {/* Show loading dots at end of message while still generating */}
-                  {msg.loading && (
-                    <div className="inline-loading">
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                      <span className="dot"></span>
-                    </div>
-                  )}
-                </>
-              ) : null}
-
-              {/* Tool calls footer - expandable */}
-              {msg.role === "assistant" &&
-                !msg.loading &&
-                msg.toolCalls &&
-                msg.toolCalls.length > 0 && (
-                  <ToolCallsFooter toolCalls={msg.toolCalls} />
-                )}
-            </div>
+        {messages.length === 0 ? (
+          <div className="welcome-message">
+            <h2>Welcome to ZoBot Chat!</h2>
+            <p>How can I help you?</p>
           </div>
-        ))}
+        ) : (
+          messages.map((msg, idx) => (
+            <div key={idx} className={`message ${msg.role}`}>
+              <div className="message-header">
+                <div className="message-role">
+                  {msg.role === "user" ? "You" : "Zo"}
+                </div>
+                <div className="message-timestamp">
+                  {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                </div>
+              </div>
+              <div className="message-content">
+                {/* Main content */}
+                {msg.loading && !msg.content ? (
+                  <div className="loading-indicator">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </div>
+                ) : msg.error ? (
+                  <div className="error-message">{msg.content}</div>
+                ) : msg.content ? (
+                  <>
+                    <div className="message-text">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                    {/* Show loading dots at end of message while still generating */}
+                    {msg.loading && (
+                      <div className="inline-loading">
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
+                {/* Tool calls footer - expandable */}
+                {msg.role === "assistant" &&
+                  !msg.loading &&
+                  msg.toolCalls &&
+                  msg.toolCalls.length > 0 && (
+                    <ToolCallsFooter toolCalls={msg.toolCalls} />
+                  )}
+              </div>
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
 

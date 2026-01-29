@@ -18,6 +18,33 @@
   scroll-behavior: smooth;
 }
 
+.welcome-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.welcome-message h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-md) 0;
+  line-height: var(--leading-tight);
+}
+
+.welcome-message p {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--leading-normal);
+}
+
 .message {
   padding: var(--space-lg);
   border-top: 2px solid var(--border);
