@@ -195,8 +195,9 @@
    ============================================================================= */
 .facetime-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
   background: var(--bg-secondary);
   border-top: 2px solid var(--border);
@@ -250,12 +251,11 @@
 }
 
 /* =============================================================================
-   ACTIVE TOOLS DISPLAY - Right side in footer
+   ACTIVE TOOLS DISPLAY - Centered in footer
    ============================================================================= */
 .active-tools {
   display: flex;
   align-items: center;
-  margin-left: auto;
 }
 
 .tool-badge {

@@ -6,7 +6,8 @@
       "Bash(sqlite3:*)",
       "Bash(node:*)",
       "Bash(./stop.sh)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ls:*)"
     ]
   }
 }
