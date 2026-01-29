@@ -7,6 +7,7 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 import { api } from "../services/api";
+import { showToast } from "./Toast";
 import "./ChatInterface.css";
 
 // Tool calls expandable footer component
@@ -190,12 +191,13 @@ const ChatInterface = forwardRef(function ChatInterface(
   };
 
   const handleCompress = async () => {
-    if (!currentConversationId || compressing || compressionInfo.compressionSummary) {
+    if (!currentConversationId || compressing) {
       return;
     }
 
     setCompressing(true);
     setError(null);
+    showToast('Compressing conversation...', 'info');
 
     try {
       const response = await fetch(
@@ -218,10 +220,12 @@ const ChatInterface = forwardRef(function ChatInterface(
         compressedMessageCount: data.compressedCount
       });
 
+      showToast(`Compressed ${data.compressedCount} messages successfully`, 'success');
       console.log(`Compressed ${data.compressedCount} messages`);
     } catch (err) {
       console.error("Failed to compress conversation:", err);
       setError(`Compression failed: ${err.message}`);
+      showToast(`Compression failed: ${err.message}`, 'error');
     } finally {
       setCompressing(false);
     }
@@ -229,7 +233,12 @@ const ChatInterface = forwardRef(function ChatInterface(
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || compressing) {
+      if (compressing) {
+        showToast('Please wait for compression to complete', 'warning');
+      }
+      return;
+    }
 
     const userMessage = input.trim();
     setInput("");
@@ -406,7 +415,15 @@ const ChatInterface = forwardRef(function ChatInterface(
             compressedAt: new Date().toISOString(),
             compressedMessageCount: compressionData.compressedCount
           });
+
+          showToast(`Auto-compressed ${compressionData.compressedCount} messages successfully`, 'success');
           console.log(`Auto-compressed ${compressionData.compressedCount} messages`);
+          setCompressing(false);
+        },
+        // onCompressionStart - called when compression starts
+        () => {
+          showToast('Auto-compressing conversation...', 'info');
+          setCompressing(true);
         },
         // Pass abort signal
         controller.signal,
@@ -569,8 +586,8 @@ const ChatInterface = forwardRef(function ChatInterface(
               handleSubmit(e);
             }
           }}
-          placeholder="Type a message..."
-          disabled={loading}
+          placeholder={compressing ? "Compressing conversation..." : "Type a message..."}
+          disabled={loading || compressing}
           className="message-input"
           rows="1"
         />
@@ -586,8 +603,9 @@ const ChatInterface = forwardRef(function ChatInterface(
         ) : (
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || compressing}
             className="send-button"
+            title={compressing ? "Compressing conversation..." : "Send message"}
           >
             <span>Send</span>
           </button>
@@ -611,31 +629,42 @@ const ChatInterface = forwardRef(function ChatInterface(
               </span>
             )}
           </div>
-          {currentConversationId && (
-            <button
-              type="button"
-              className="compress-context-button"
-              onClick={handleCompress}
-              disabled={compressing || messages.length < compressionConfig.minimumMessages || compressionInfo.compressionSummary}
-              title={
-                compressionInfo.compressionSummary
-                  ? "Already compressed"
-                  : messages.length < compressionConfig.minimumMessages
-                    ? `Need at least ${compressionConfig.minimumMessages} messages to compress`
-                    : "Compress conversation context"
-              }
-            >
-              {compressing ? (
-                <span className="loading-dots">
-                  <span className="dot">.</span>
-                  <span className="dot">.</span>
-                  <span className="dot">.</span>
-                </span>
-              ) : (
-                '[compress context]'
-              )}
-            </button>
-          )}
+          {currentConversationId && (() => {
+            const hasNewMessages = compressionInfo.compressionSummary
+              ? messages.length > compressionInfo.compressedMessageCount + compressionConfig.keepRecentMessages
+              : true;
+            const canCompress = messages.length >= compressionConfig.minimumMessages && hasNewMessages;
+
+            return (
+              <button
+                type="button"
+                className="compress-context-button"
+                onClick={handleCompress}
+                disabled={compressing || !canCompress}
+                title={
+                  compressing
+                    ? "Compressing..."
+                    : !hasNewMessages
+                      ? "No new messages to compress"
+                      : messages.length < compressionConfig.minimumMessages
+                        ? `Need at least ${compressionConfig.minimumMessages} messages to compress`
+                        : compressionInfo.compressionSummary
+                          ? "Re-compress conversation context"
+                          : "Compress conversation context"
+                }
+              >
+                {compressing ? (
+                  <span className="loading-dots">
+                    <span className="dot">.</span>
+                    <span className="dot">.</span>
+                    <span className="dot">.</span>
+                  </span>
+                ) : (
+                  '[compress context]'
+                )}
+              </button>
+            );
+          })()}
         </div>
       )}
     </div>

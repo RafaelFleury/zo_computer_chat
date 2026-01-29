@@ -114,11 +114,15 @@ router.post('/', async (req, res) => {
 
     // Check if compression is needed
     const shouldCompress = compressionService.shouldCompress(response.usage?.total_tokens || 0);
-    if (shouldCompress && !compressionMeta.compressionSummary) {
-      try {
-        logger.info(`Context size ${response.usage.total_tokens} exceeds threshold, triggering compression`);
+    // Allow re-compression if: threshold exceeded AND (never compressed OR new messages added since last compression)
+    const canCompress = shouldCompress && (!compressionMeta.compressionSummary || conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages);
 
-        // Compress messages (keep last 5 messages uncompressed)
+    if (canCompress) {
+      try {
+        const isRecompression = !!compressionMeta.compressionSummary;
+        logger.info(`Context size ${response.usage.total_tokens} exceeds threshold, triggering ${isRecompression ? 're-' : ''}compression`);
+
+        // Compress messages (keep recent messages uncompressed)
         const compressionResult = await compressionService.compressMessages(conversation);
 
         // Update compression metadata
@@ -298,11 +302,24 @@ router.post('/stream', async (req, res) => {
 
     // Check if compression is needed
     const shouldCompress = compressionService.shouldCompress(result.usage?.total_tokens || 0);
-    if (shouldCompress && !compressionMeta.compressionSummary) {
-      try {
-        logger.info(`Context size ${result.usage.total_tokens} exceeds threshold, triggering compression`);
+    // Allow re-compression if: threshold exceeded AND (never compressed OR new messages added since last compression)
+    const canCompress = shouldCompress && (!compressionMeta.compressionSummary || conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages);
 
-        // Compress messages (keep last 5 messages uncompressed)
+    if (canCompress) {
+      try {
+        const isRecompression = !!compressionMeta.compressionSummary;
+        logger.info(`Context size ${result.usage.total_tokens} exceeds threshold, triggering ${isRecompression ? 're-' : ''}compression`);
+
+        // Notify client compression is starting
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'compression_start'
+          })}\n\n`);
+        } catch (err) {
+          // Client may have disconnected
+        }
+
+        // Compress messages (keep recent messages uncompressed)
         const compressionResult = await compressionService.compressMessages(conversation);
 
         // Update compression metadata
@@ -735,15 +752,21 @@ router.post('/compress/:id', async (req, res) => {
 
     const conversation = conversations.get(id);
 
-    // Check if already compressed
+    // Get or initialize compression metadata
     const compressionMeta = compressionMetadata.get(id) || {
       compressionSummary: null,
       compressedAt: null,
       compressedMessageCount: 0
     };
 
-    if (compressionMeta.compressionSummary) {
-      return res.status(400).json({ error: 'Conversation already compressed' });
+    // Check if there are new messages to compress since last compression
+    const isRecompression = !!compressionMeta.compressionSummary;
+    const hasNewMessages = conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages;
+
+    if (isRecompression && !hasNewMessages) {
+      return res.status(400).json({
+        error: 'No new messages to compress. Add more messages before re-compressing.'
+      });
     }
 
     // Need at least N+1 messages to compress (where N is the number of messages to keep)
@@ -754,7 +777,7 @@ router.post('/compress/:id', async (req, res) => {
       });
     }
 
-    logger.info(`Manual compression triggered for conversation ${id}`);
+    logger.info(`Manual ${isRecompression ? 're-' : ''}compression triggered for conversation ${id}`);
 
     // Compress messages (keeps recent messages uncompressed based on config)
     const compressionResult = await compressionService.compressMessages(conversation);
