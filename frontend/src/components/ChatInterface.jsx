@@ -165,9 +165,9 @@ const ChatInterface = forwardRef(function ChatInterface(
     const controller = new AbortController();
     setAbortController(controller);
 
-    // Immediately reflect that we're waiting for the assistant to respond.
+    // Immediately reflect that we're listening for the assistant to respond.
     // This prevents FaceTimeView from entering "sleep" while the request is in-flight.
-    updateStreamingState("waiting");
+    updateStreamingState("listening");
 
     // Add user message
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);

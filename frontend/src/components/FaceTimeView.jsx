@@ -21,7 +21,7 @@ export default function FaceTimeView({
   const sleepTimerRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Handle sleep timer - sleep after 10 seconds of idle
+  // Handle sleep timer - sleep after 10 seconds of idle (but not when bubbles visible)
   useEffect(() => {
     // Clear any existing timer
     if (sleepTimerRef.current) {
@@ -29,14 +29,14 @@ export default function FaceTimeView({
       sleepTimerRef.current = null;
     }
 
-    // If idle, start the sleep timer
-    if (streamingState.status === "idle") {
+    // If idle and bubbles not visible, start the sleep timer
+    if (streamingState.status === "idle" && !bubblesVisible) {
       setIsSleeping(false); // Reset to awake first
       sleepTimerRef.current = setTimeout(() => {
         setIsSleeping(true);
       }, 10000); // 10 seconds
     } else {
-      // If not idle, wake up immediately
+      // If not idle or bubbles visible, wake up immediately
       setIsSleeping(false);
     }
 
@@ -45,19 +45,28 @@ export default function FaceTimeView({
         clearTimeout(sleepTimerRef.current);
       }
     };
-  }, [streamingState.status, streamingState.lastUpdate]);
+  }, [streamingState.status, streamingState.lastUpdate, bubblesVisible]);
 
   // Determine animation state based on streaming state and sleep
   const animationState = useMemo(() => {
-    if (streamingState.status === "idle" && isSleeping) {
+    // Priority 1: Sleeping (only when idle and timer has triggered and bubbles not visible)
+    if (streamingState.status === "idle" && isSleeping && !bubblesVisible) {
       return "sleeping";
     }
-    // Treat "waiting" as "idle" for visuals, but keep it distinct for timers/status.
-    if (streamingState.status === "waiting") {
-      return "idle";
+
+    // Priority 2: Active states (thinking, talking) - these always override everything
+    if (streamingState.status === "thinking" || streamingState.status === "talking") {
+      return streamingState.status;
     }
-    return streamingState.status || "idle";
-  }, [streamingState.status, isSleeping]);
+
+    // Priority 3: Listening state (eyes follow mouse when bubbles visible OR explicitly listening)
+    if (bubblesVisible || streamingState.status === "listening") {
+      return "listening";
+    }
+
+    // Priority 4: Default to waiting (idle with blinking eyes)
+    return "waiting";
+  }, [streamingState.status, isSleeping, bubblesVisible]);
 
   const statusMessage = useMemo(() => {
     if (streamingState.status === "thinking" && currentToolCalls.length > 0) {
@@ -70,10 +79,6 @@ export default function FaceTimeView({
       return "Thinking...";
     }
 
-    if (streamingState.status === "waiting") {
-      return "Waiting...";
-    }
-
     if (streamingState.status === "talking") {
       return "Speaking...";
     }
@@ -82,8 +87,14 @@ export default function FaceTimeView({
       return "Sleeping...";
     }
 
-    return conversationId ? "Listening..." : "Waiting...";
-  }, [streamingState.status, currentToolCalls, conversationId, isSleeping]);
+    // Listening = eyes follow mouse (bubbles visible OR backend listening state)
+    if (bubblesVisible || streamingState.status === "listening") {
+      return "Listening...";
+    }
+
+    // Waiting = idle with blinking eyes
+    return "Waiting...";
+  }, [streamingState.status, currentToolCalls, conversationId, isSleeping, bubblesVisible]);
 
   const statusClass = useMemo(() => {
     if (isSleeping && streamingState.status === "idle") {
