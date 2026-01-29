@@ -121,4 +121,46 @@ export const api = {
     const response = await fetch(`${API_URL}/health`);
     return response.json();
   },
+
+  async getMemories() {
+    const response = await fetch(`${API_URL}/api/chat/memories`);
+    if (!response.ok) throw new Error('Failed to fetch memories');
+    return response.json(); // Returns { memories: [...] }
+  },
+
+  async addMemory(content, category = 'user', metadata = {}) {
+    const response = await fetch(`${API_URL}/api/chat/memories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, category, metadata }),
+    });
+    if (!response.ok) throw new Error('Failed to add memory');
+    return response.json(); // Returns { message, memory: {...} }
+  },
+
+  async updateMemory(id, updates) {
+    const response = await fetch(`${API_URL}/api/chat/memories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) throw new Error('Failed to update memory');
+    return response.json(); // Returns { message, memory: {...} }
+  },
+
+  async deleteMemory(id) {
+    const response = await fetch(`${API_URL}/api/chat/memories/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete memory');
+    return response.json();
+  },
+
+  async reloadMemories() {
+    const response = await fetch(`${API_URL}/api/chat/memories/reload`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to reload memories');
+    return response.json();
+  },
 };
