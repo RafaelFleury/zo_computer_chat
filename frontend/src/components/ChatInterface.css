@@ -283,7 +283,7 @@
   color: var(--text-primary);
   resize: none;
   min-height: 24px;
-  max-height: 120px;
+  max-height: 240px;
   line-height: var(--leading-normal);
 }
 
@@ -353,21 +353,23 @@
   opacity: 0.8;
 }
 
-.context-toggle {
+.info-toggle {
   padding: 0;
   background: transparent;
   color: var(--text-tertiary);
   border: none;
-  font-family: var(--font-display);
-  font-size: var(--text-xs);
+  font-size: 1.25rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
+  margin-bottom: 2px;
 }
 
-.context-toggle:hover {
+.info-toggle:hover {
   color: var(--text-secondary);
 }
 

@@ -454,10 +454,25 @@ const ChatInterface = forwardRef(function ChatInterface(
       {error && <div className="error-banner">{error}</div>}
 
       <form onSubmit={handleSubmit} className="input-form">
+        {usage && (
+          <button
+            type="button"
+            className="info-toggle"
+            onClick={() => setShowContext(!showContext)}
+            title="Toggle info"
+          >
+            ⚙
+          </button>
+        )}
         <textarea
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // Auto-resize textarea
+            e.target.style.height = 'auto';
+            e.target.style.height = e.target.scrollHeight + 'px';
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -485,16 +500,6 @@ const ChatInterface = forwardRef(function ChatInterface(
             className="send-button"
           >
             <span>Send</span>
-          </button>
-        )}
-        {usage && (
-          <button
-            type="button"
-            className="context-toggle"
-            onClick={() => setShowContext(!showContext)}
-            title="Toggle token usage"
-          >
-            {usage.total_tokens?.toLocaleString() || 0}
           </button>
         )}
       </form>
