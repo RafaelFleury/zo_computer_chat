@@ -27,7 +27,7 @@ export const api = {
     return response.json();
   },
 
-  async streamMessage(message, conversationId = 'default', onChunk, onToolCall, onUsage) {
+  async streamMessage(message, conversationId = 'default', onChunk, onToolCall, onUsage, signal) {
     // Note: Using fetch with ReadableStream instead of EventSource for POST support
     const response = await fetch(`${API_URL}/api/chat/stream`, {
       method: 'POST',
@@ -35,6 +35,7 @@ export const api = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ message, conversationId }),
+      signal, // Add abort signal support
     });
 
     if (!response.ok) {
@@ -45,32 +46,36 @@ export const api = {
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
 
-      if (done) break;
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = JSON.parse(line.slice(6));
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
 
-          if (data.type === 'content') {
-            onChunk?.(data.content);
-          } else if (data.type === 'tool_call') {
-            onToolCall?.(data);
-          } else if (data.type === 'usage') {
-            onUsage?.(data.usage);
-          } else if (data.type === 'done') {
-            return;
-          } else if (data.type === 'error') {
-            throw new Error(data.error);
+            if (data.type === 'content') {
+              onChunk?.(data.content);
+            } else if (data.type === 'tool_call') {
+              onToolCall?.(data);
+            } else if (data.type === 'usage') {
+              onUsage?.(data.usage);
+            } else if (data.type === 'done') {
+              return;
+            } else if (data.type === 'error') {
+              throw new Error(data.error);
+            }
           }
         }
       }
+    } finally {
+      reader.cancel();
     }
   },
 

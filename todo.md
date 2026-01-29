@@ -14,6 +14,6 @@
 
 
 # Low priority
-[ ] - The stop buttom only works on the frontend. the model doesnt actually stop
+[ ] - The stop buttom only works on the frontend. the model doesnt actually stop. theres some backend stuff related but not working.
 [ ] - Always do a forced '\n' when the model talks between tool calls.
 [ ] - ensure the maximum token amount displayed is accurate

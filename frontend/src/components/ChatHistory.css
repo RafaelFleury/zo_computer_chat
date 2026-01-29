@@ -60,8 +60,8 @@
   padding: var(--space-md);
   border-bottom: 2px solid var(--border);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--space-md);
   background: var(--bg-secondary);
 }
 

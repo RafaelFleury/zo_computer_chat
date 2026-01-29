@@ -139,12 +139,24 @@
   padding: var(--space-md) 0;
 }
 
+.inline-loading {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+  align-items: center;
+}
+
 .dot {
   width: 6px;
   height: 6px;
   background: var(--text-tertiary);
   border-radius: 50%;
   animation: blink 1.4s infinite ease-in-out;
+}
+
+.inline-loading .dot {
+  width: 4px;
+  height: 4px;
 }
 
 .dot:nth-child(1) {
@@ -179,7 +191,7 @@
 /* Tool calls footer */
 .tool-calls-footer {
   margin-top: var(--space-md);
-  padding-top: var(--space-sm);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--border);
 }
 
@@ -189,10 +201,21 @@
   color: var(--text-tertiary);
   cursor: pointer;
   user-select: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .tool-calls-summary:hover {
   color: var(--text-secondary);
+}
+
+.expand-icon {
+  font-size: 0.7em;
+  color: var(--text-tertiary);
 }
 
 .tool-calls-details {
@@ -200,9 +223,29 @@
   padding: var(--space-sm);
   background: var(--bg-tertiary);
   border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.tool-call-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs);
   font-family: var(--font-display);
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+}
+
+.tool-call-name {
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+.tool-call-status {
+  color: var(--text-tertiary);
+  text-transform: capitalize;
 }
 
 /* Remove process timeline and live tool calls */
@@ -288,6 +331,26 @@
 
 .send-button::after {
   content: "→";
+}
+
+.stop-button {
+  padding: 0;
+  background: transparent;
+  color: var(--semantic-error);
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.stop-button:hover {
+  color: var(--semantic-error);
+  opacity: 0.8;
 }
 
 .context-toggle {

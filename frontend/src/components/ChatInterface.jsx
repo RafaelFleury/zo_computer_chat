@@ -9,6 +9,33 @@ import ReactMarkdown from "react-markdown";
 import { api } from "../services/api";
 import "./ChatInterface.css";
 
+// Tool calls expandable footer component
+function ToolCallsFooter({ toolCalls }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="tool-calls-footer">
+      <button
+        className="tool-calls-summary"
+        onClick={() => setExpanded(!expanded)}
+      >
+        ⚡ {toolCalls.length} {toolCalls.length === 1 ? 'tool' : 'tools'} used
+        <span className="expand-icon">{expanded ? '▼' : '▶'}</span>
+      </button>
+      {expanded && (
+        <div className="tool-calls-details">
+          {toolCalls.map((tool, i) => (
+            <div key={i} className="tool-call-item">
+              <div className="tool-call-name">{tool.toolName}</div>
+              <div className="tool-call-status">{tool.status}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ChatInterface = forwardRef(function ChatInterface(
   {
     conversationId,
@@ -31,6 +58,7 @@ const ChatInterface = forwardRef(function ChatInterface(
     useState(conversationId);
   const [usage, setUsage] = useState(null);
   const [showContext, setShowContext] = useState(false);
+  const [abortController, setAbortController] = useState(null);
   const messagesEndRef = useRef(null);
   const idleTimeoutRef = useRef(null);
   const inputRef = useRef(null);
@@ -115,6 +143,16 @@ const ChatInterface = forwardRef(function ChatInterface(
     }
   };
 
+  const handleStop = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setLoading(false);
+      onProcessingChange?.(false);
+      updateStreamingState("idle");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -122,6 +160,10 @@ const ChatInterface = forwardRef(function ChatInterface(
     const userMessage = input.trim();
     setInput("");
     setError(null);
+
+    // Create abort controller for this request
+    const controller = new AbortController();
+    setAbortController(controller);
 
     // Immediately reflect that we're waiting for the assistant to respond.
     // This prevents FaceTimeView from entering "sleep" while the request is in-flight.
@@ -177,7 +219,7 @@ const ChatInterface = forwardRef(function ChatInterface(
         return updated;
       });
 
-      // Use streaming API
+      // Use streaming API with abort signal
       await api.streamMessage(
         userMessage,
         convId,
@@ -283,6 +325,8 @@ const ChatInterface = forwardRef(function ChatInterface(
         (usageData) => {
           setUsage(usageData);
         },
+        // Pass abort signal
+        controller.signal,
       );
 
       // Add "Response complete" step
@@ -312,23 +356,38 @@ const ChatInterface = forwardRef(function ChatInterface(
       activeToolCalls = [];
       onToolCallsUpdate?.([]);
       updateStreamingState("idle");
+      setAbortController(null);
     } catch (err) {
-      setError(err.message);
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[assistantMessageIndex] = {
-          role: "assistant",
-          content: `Error: ${err.message}`,
-          loading: false,
-          error: true,
-        };
-        return updated;
-      });
+      // Check if it was aborted by user
+      if (err.name === 'AbortError') {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[assistantMessageIndex] = {
+            ...updated[assistantMessageIndex],
+            loading: false,
+            content: updated[assistantMessageIndex].content || '(stopped)',
+          };
+          return updated;
+        });
+      } else {
+        setError(err.message);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[assistantMessageIndex] = {
+            role: "assistant",
+            content: `Error: ${err.message}`,
+            loading: false,
+            error: true,
+          };
+          return updated;
+        });
+      }
 
       // Reset to idle on error
       activeToolCalls = [];
       onToolCallsUpdate?.([]);
       updateStreamingState("idle");
+      setAbortController(null);
     } finally {
       setLoading(false);
       onProcessingChange?.(false);
@@ -364,21 +423,27 @@ const ChatInterface = forwardRef(function ChatInterface(
               ) : msg.error ? (
                 <div className="error-message">{msg.content}</div>
               ) : msg.content ? (
-                <div className="message-text">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                </div>
+                <>
+                  <div className="message-text">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                  {/* Show loading dots at end of message while still generating */}
+                  {msg.loading && (
+                    <div className="inline-loading">
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                    </div>
+                  )}
+                </>
               ) : null}
 
-              {/* Tool calls footer - only show count after completion */}
+              {/* Tool calls footer - expandable */}
               {msg.role === "assistant" &&
                 !msg.loading &&
                 msg.toolCalls &&
                 msg.toolCalls.length > 0 && (
-                  <div className="tool-calls-footer">
-                    <div className="tool-calls-summary">
-                      ⚡ {msg.toolCalls.length} {msg.toolCalls.length === 1 ? 'tool' : 'tools'} used
-                    </div>
-                  </div>
+                  <ToolCallsFooter toolCalls={msg.toolCalls} />
                 )}
             </div>
           </div>
@@ -404,13 +469,24 @@ const ChatInterface = forwardRef(function ChatInterface(
           className="message-input"
           rows="1"
         />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="send-button"
-        >
-          <span>{loading ? "Sending..." : "Send"}</span>
-        </button>
+        {loading ? (
+          <button
+            type="button"
+            onClick={handleStop}
+            className="stop-button"
+            title="Stop generation"
+          >
+            ■
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            className="send-button"
+          >
+            <span>Send</span>
+          </button>
+        )}
         {usage && (
           <button
             type="button"
