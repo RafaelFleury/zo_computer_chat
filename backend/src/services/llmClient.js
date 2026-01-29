@@ -6,6 +6,13 @@ class LLMClient {
   constructor() {
     this.client = null;
     this.modelName = process.env.MODEL_NAME || 'glm-4.7';
+    this.customToolHandlers = new Map();
+  }
+
+  // Register custom tool handlers (not MCP tools)
+  registerCustomToolHandler(toolName, handler) {
+    this.customToolHandlers.set(toolName, handler);
+    logger.info(`Registered custom tool handler: ${toolName}`);
   }
 
   initialize(apiKey) {
@@ -64,7 +71,16 @@ class LLMClient {
           logger.info(`Executing tool: ${toolName}`, { args: toolArgs });
 
           try {
-            const result = await zoMCP.callTool(toolName, toolArgs);
+            let result;
+
+            // Check if this is a custom tool
+            if (this.customToolHandlers.has(toolName)) {
+              const handler = this.customToolHandlers.get(toolName);
+              result = await handler(toolArgs);
+            } else {
+              // Default to MCP tool
+              result = await zoMCP.callTool(toolName, toolArgs);
+            }
 
             toolResults.push({
               tool_call_id: toolCall.id,
@@ -225,7 +241,16 @@ class LLMClient {
           }
 
           try {
-            const result = await zoMCP.callTool(toolName, toolArgs);
+            let result;
+
+            // Check if this is a custom tool
+            if (this.customToolHandlers.has(toolName)) {
+              const handler = this.customToolHandlers.get(toolName);
+              result = await handler(toolArgs);
+            } else {
+              // Default to MCP tool
+              result = await zoMCP.callTool(toolName, toolArgs);
+            }
 
             toolResults.push({
               tool_call_id: toolCall.id,

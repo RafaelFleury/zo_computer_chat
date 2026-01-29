@@ -6,7 +6,14 @@ class ZoMCPClient {
   constructor() {
     this.client = null;
     this.tools = [];
+    this.customTools = [];
     this.isConnected = false;
+  }
+
+  // Register custom tools (non-MCP tools handled by our application)
+  registerCustomTools(tools) {
+    this.customTools = tools;
+    logger.info(`Registered ${tools.length} custom tools`);
   }
 
   async connect(apiKey) {
@@ -81,12 +88,12 @@ class ZoMCPClient {
   }
 
   getAvailableTools() {
-    return this.tools;
+    return [...this.tools, ...this.customTools];
   }
 
   getToolsForLLM() {
     // Convert MCP tools to OpenAI function calling format
-    return this.tools.map(tool => ({
+    const mcpTools = this.tools.map(tool => ({
       type: 'function',
       function: {
         name: tool.name,
@@ -98,6 +105,11 @@ class ZoMCPClient {
         }
       }
     }));
+
+    // Add custom tools (already in OpenAI format)
+    const allTools = [...mcpTools, ...this.customTools];
+
+    return allTools;
   }
 
   async disconnect() {

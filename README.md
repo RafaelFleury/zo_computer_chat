@@ -7,6 +7,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **Advanced LLM**: Powered by GLM-4.7 with OpenAI-compatible API
 - **MCP Integration**: Full access to Zo Computer's 50+ tools via Model Context Protocol
 - **Real-time Chat**: Clean, responsive chat interface with markdown support
+- **Persistent Memory**: Assistant can remember important information across conversations
 - **SQLite Persistence**: Fast, reliable conversation storage with ACID guarantees
 - **Comprehensive Logging**: Detailed logs of all LLM requests, MCP tool calls, and system events
 - **Tool Visualization**: See which Zo tools are being used in real-time
@@ -36,10 +37,11 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **MCP Client** (`mcpClient.js`): Manages connection to Zo's MCP server, discovers available tools, and executes tool calls
 - **LLM Client** (`llmClient.js`): Handles GLM-4.7 API calls with function calling support
 - **Persona Manager** (`personaManager.js`): Loads and manages the system message from `initial_persona.json`
+- **Memory Manager** (`memoryManager.js`): Manages persistent memories that the assistant can add, update, and remove
 - **Chat Persistence** (`chatPersistence.js`): SQLite-based conversation storage with transactions
 - **Database Manager** (`database.js`): Singleton SQLite connection with WAL mode
 - **Schema Service** (`schemaService.js`): Database schema initialization and migrations
-- **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, and logs
+- **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, logs, and memories
 - **Logger** (`logger.js`): Winston-based logging with file rotation
 
 ### Frontend Components
@@ -415,6 +417,94 @@ The assistant's behavior is controlled by a system message loaded from `/home/wo
 
 The default system message instructs the assistant to be a helpful AI with access to Zo Computer's cloud-based tools, explaining tool usage clearly and proactively using available tools to accomplish tasks efficiently.
 
+## Persistent Memory System
+
+The assistant has access to a persistent memory system that allows it to remember important information across conversations. Memories are stored in `/home/workspace/zo_chat_memories/memories.json` and are automatically loaded with every conversation.
+
+### How Memory Works
+
+1. **Automatic Memory Management**: The assistant can autonomously add or remove memories when:
+   - Users share important information (preferences, facts, project details)
+   - Users explicitly ask to remember something
+   - Information becomes outdated or irrelevant
+
+2. **Memory Categories**:
+   - `user_preference`: User preferences and settings
+   - `project_info`: Project-related information
+   - `personal_fact`: Personal information about the user
+   - `system`: System-level instructions (managed automatically)
+   - `user`: General user information (default)
+   - `other`: Miscellaneous memories
+
+3. **Default Memory**: On first run, a default system memory is created that instructs the assistant about its memory management capabilities.
+
+### Memory File Format
+
+The `memories.json` file structure:
+
+```json
+{
+  "memories": [
+    {
+      "id": "memory-1738012345678-abc123",
+      "content": "User prefers concise technical explanations",
+      "createdAt": "2026-01-28T10:30:00.000Z",
+      "category": "user_preference",
+      "metadata": {
+        "source": "conversation"
+      }
+    }
+  ],
+  "metadata": {
+    "lastUpdated": "2026-01-28T10:30:00.000Z",
+    "version": "1.0",
+    "totalMemories": 1
+  }
+}
+```
+
+### Using Memories
+
+**From Chat Interface**:
+- Simply tell the assistant what to remember: "Remember that I prefer Python over JavaScript"
+- The assistant will automatically use the `add_memory` tool to store this information
+- Ask the assistant to recall: "What programming language do I prefer?"
+- Ask to forget: "Forget my programming language preference"
+
+**Via API** (for manual management):
+
+```bash
+# List all memories
+curl http://localhost:3001/api/chat/memories
+
+# Add a memory
+curl -X POST http://localhost:3001/api/chat/memories \
+  -H "Content-Type: application/json" \
+  -d '{"content": "User works with React and TypeScript", "category": "project_info"}'
+
+# Remove a memory
+curl -X DELETE http://localhost:3001/api/chat/memories/memory-123
+
+# Update a memory
+curl -X PUT http://localhost:3001/api/chat/memories/memory-123 \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Updated memory content"}'
+
+# Reload memories from file
+curl -X POST http://localhost:3001/api/chat/memories/reload
+
+# Clear all user memories (keeps system memories)
+curl -X DELETE http://localhost:3001/api/chat/memories
+```
+
+### Memory Tools (Available to Assistant)
+
+The assistant has access to three memory management tools:
+
+1. **`add_memory`**: Add new information to persistent storage
+2. **`remove_memory`**: Remove outdated or irrelevant memories by ID
+3. **`list_memories`**: View all currently stored memories with their details
+
 ## API Endpoints
 
 ### Chat
@@ -429,6 +519,15 @@ The default system message instructs the assistant to be a helpful AI with acces
 
 - `GET /api/chat/persona` - Get current system message
 - `POST /api/chat/reload-persona` - Reload system message from file
+
+### Memories
+
+- `GET /api/chat/memories` - Get all memories
+- `POST /api/chat/memories` - Add a new memory
+- `PUT /api/chat/memories/:id` - Update a memory
+- `DELETE /api/chat/memories/:id` - Remove a specific memory
+- `DELETE /api/chat/memories` - Clear all user memories (keeps system memories)
+- `POST /api/chat/memories/reload` - Reload memories from file
 
 ### Logs
 
@@ -558,6 +657,7 @@ zo_computer_chat/
 │   │   │   ├── mcpClient.js
 │   │   │   ├── llmClient.js
 │   │   │   ├── personaManager.js
+│   │   │   ├── memoryManager.js
 │   │   │   ├── chatPersistence.js
 │   │   │   ├── database.js
 │   │   │   └── schemaService.js
@@ -595,7 +695,8 @@ zo_computer_chat/
 External (Zo filesystem - runtime-created):
 /home/workspace/
 └── zo_chat_memories/
-    └── initial_persona.json
+    ├── initial_persona.json
+    └── memories.json
 ```
 
 ### Adding New Features

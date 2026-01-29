@@ -1,5 +1,6 @@
 import { zoMCP } from './mcpClient.js';
 import { logger } from '../utils/logger.js';
+import { memoryManager } from './memoryManager.js';
 
 class PersonaManager {
   constructor() {
@@ -98,7 +99,9 @@ class PersonaManager {
   }
 
   getSystemMessage() {
-    return this.systemMessage || this.getHardcodedDefault();
+    const baseMessage = this.systemMessage || this.getHardcodedDefault();
+    const memoriesText = memoryManager.getMemoriesAsText();
+    return baseMessage + memoriesText;
   }
 
   async reloadPersona() {

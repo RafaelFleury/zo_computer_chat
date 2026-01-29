@@ -2,6 +2,7 @@ import express from 'express';
 import { llmClient } from '../services/llmClient.js';
 import { chatPersistence } from '../services/chatPersistence.js';
 import { personaManager } from '../services/personaManager.js';
+import { memoryManager } from '../services/memoryManager.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -63,12 +64,11 @@ router.post('/', async (req, res) => {
       ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
     }));
 
-    // Add system message at the beginning if this is a new conversation
-    if (conversationForLLM.length === 0) {
-      const systemMessage = personaManager.getSystemMessage();
-      conversationForLLM.unshift({ role: 'system', content: systemMessage });
-      logger.info('Added system message to new conversation');
-    }
+    // Always add fresh system message with current memories at the beginning
+    // This ensures the assistant always has access to the latest memories
+    const systemMessage = personaManager.getSystemMessage();
+    conversationForLLM.unshift({ role: 'system', content: systemMessage });
+    logger.info('Added system message with memories to conversation');
 
     // Add the new user message
     conversationForLLM.push({ role: 'user', content: message });
@@ -172,12 +172,11 @@ router.post('/stream', async (req, res) => {
       ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
     }));
 
-    // Add system message at the beginning if this is a new conversation
-    if (conversationForLLM.length === 0) {
-      const systemMessage = personaManager.getSystemMessage();
-      conversationForLLM.unshift({ role: 'system', content: systemMessage });
-      logger.info('Added system message to new conversation (streaming)');
-    }
+    // Always add fresh system message with current memories at the beginning
+    // This ensures the assistant always has access to the latest memories
+    const systemMessage = personaManager.getSystemMessage();
+    conversationForLLM.unshift({ role: 'system', content: systemMessage });
+    logger.info('Added system message with memories to conversation (streaming)');
 
     // Add the new user message
     conversationForLLM.push({ role: 'user', content: message });
@@ -491,6 +490,118 @@ router.get('/persona', (req, res) => {
     systemMessage,
     personaFile: '/home/workspace/zo_chat_memories/initial_persona.json'
   });
+});
+
+// ============================================
+// Memory Management Endpoints
+// ============================================
+
+// GET /api/chat/memories - Get all memories
+router.get('/memories', (req, res) => {
+  try {
+    const memories = memoryManager.getMemories();
+    res.json({ memories });
+  } catch (error) {
+    logger.error('Failed to get memories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/memories - Add a new memory
+router.post('/memories', async (req, res) => {
+  try {
+    const { content, category = 'user', metadata = {} } = req.body;
+
+    if (!content) {
+      return res.status(400).json({ error: 'Memory content is required' });
+    }
+
+    const result = await memoryManager.addMemory(content, category, metadata);
+
+    if (result.success) {
+      res.json({ message: 'Memory added successfully', memory: result.memory });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Failed to add memory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/chat/memories/:id - Remove a memory
+router.delete('/memories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await memoryManager.removeMemory(id);
+
+    if (result.success) {
+      res.json({ message: 'Memory removed successfully' });
+    } else {
+      res.status(404).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Failed to remove memory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/chat/memories/:id - Update a memory
+router.put('/memories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, category, metadata } = req.body;
+
+    const updates = {};
+    if (content !== undefined) updates.content = content;
+    if (category !== undefined) updates.category = category;
+    if (metadata !== undefined) updates.metadata = metadata;
+
+    const result = await memoryManager.updateMemory(id, updates);
+
+    if (result.success) {
+      res.json({ message: 'Memory updated successfully', memory: result.memory });
+    } else {
+      res.status(404).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Failed to update memory:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/memories/reload - Reload memories from file
+router.post('/memories/reload', async (req, res) => {
+  try {
+    const success = await memoryManager.reloadMemories();
+    if (success) {
+      const memories = memoryManager.getMemories();
+      res.json({
+        message: 'Memories reloaded successfully',
+        count: memories.length
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to reload memories' });
+    }
+  } catch (error) {
+    logger.error('Failed to reload memories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/chat/memories - Clear all user memories
+router.delete('/memories', async (req, res) => {
+  try {
+    const result = await memoryManager.clearAllMemories();
+    if (result.success) {
+      res.json({ message: 'All user memories cleared successfully' });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error) {
+    logger.error('Failed to clear memories:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 export default router;
