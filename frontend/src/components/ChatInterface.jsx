@@ -66,6 +66,11 @@ const ChatInterface = forwardRef(function ChatInterface(
     compressedMessageCount: 0
   });
   const [compressing, setCompressing] = useState(false);
+  const [compressionConfig, setCompressionConfig] = useState({
+    minimumMessages: 6,
+    threshold: 100000,
+    keepRecentMessages: 5
+  });
   const messagesEndRef = useRef(null);
   const idleTimeoutRef = useRef(null);
   const inputRef = useRef(null);
@@ -121,6 +126,23 @@ const ChatInterface = forwardRef(function ChatInterface(
       setCompressionInfo(initialCompressionInfo);
     }
   }, [initialCompressionInfo]);
+
+  // Fetch compression configuration on mount
+  useEffect(() => {
+    const fetchCompressionConfig = async () => {
+      try {
+        const response = await fetch(`${api.API_URL}/api/chat/compression/config`);
+        if (response.ok) {
+          const config = await response.json();
+          setCompressionConfig(config);
+        }
+      } catch (err) {
+        console.error('Failed to fetch compression config:', err);
+        // Keep default values
+      }
+    };
+    fetchCompressionConfig();
+  }, []);
 
   // Update conversationId when prop changes
   useEffect(() => {
@@ -589,15 +611,29 @@ const ChatInterface = forwardRef(function ChatInterface(
               </span>
             )}
           </div>
-          {!compressionInfo.compressionSummary && currentConversationId && (
+          {currentConversationId && (
             <button
               type="button"
               className="compress-context-button"
               onClick={handleCompress}
-              disabled={compressing || messages.length < 6}
-              title={messages.length < 6 ? "Need at least 6 messages to compress" : "Compress conversation context"}
+              disabled={compressing || messages.length < compressionConfig.minimumMessages || compressionInfo.compressionSummary}
+              title={
+                compressionInfo.compressionSummary
+                  ? "Already compressed"
+                  : messages.length < compressionConfig.minimumMessages
+                    ? `Need at least ${compressionConfig.minimumMessages} messages to compress`
+                    : "Compress conversation context"
+              }
             >
-              {compressing ? '...' : '[compress context]'}
+              {compressing ? (
+                <span className="loading-dots">
+                  <span className="dot">.</span>
+                  <span className="dot">.</span>
+                  <span className="dot">.</span>
+                </span>
+              ) : (
+                '[compress context]'
+              )}
             </button>
           )}
         </div>

@@ -2,14 +2,23 @@ import { llmClient } from './llmClient.js';
 import { logger } from '../utils/logger.js';
 import { memoryManager } from './memoryManager.js';
 
-const COMPRESSION_THRESHOLD = 100000; // 100K tokens
-
 class CompressionService {
+  constructor() {
+    // Load configuration from environment with fallbacks
+    this.compressionThreshold = parseInt(process.env.COMPRESSION_THRESHOLD) || 6000; // 100K tokens default
+    this.keepRecentMessages = parseInt(process.env.COMPRESSION_KEEP_RECENT) || 0; // Keep last 5 messages default
+
+    logger.info('Compression service initialized', {
+      threshold: this.compressionThreshold,
+      keepRecentMessages: this.keepRecentMessages
+    });
+  }
+
   /**
    * Check if conversation needs compression based on token count
    */
   shouldCompress(tokenCount) {
-    return tokenCount >= COMPRESSION_THRESHOLD;
+    return tokenCount >= this.compressionThreshold;
   }
 
   /**
@@ -76,8 +85,8 @@ Your summary will be used as context for future messages in this conversation, r
    * @returns {Promise<Object>} { summary, compressedCount }
    */
   async compressMessages(messages, compressUpToIndex = null) {
-    // If no index specified, compress all but the last 5 messages
-    const endIndex = compressUpToIndex || Math.max(0, messages.length - 5);
+    // If no index specified, compress all but the last N messages (from config)
+    const endIndex = compressUpToIndex || Math.max(0, messages.length - this.keepRecentMessages);
 
     if (endIndex <= 0) {
       throw new Error('No messages to compress');

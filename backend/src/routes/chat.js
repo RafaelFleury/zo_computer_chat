@@ -715,6 +715,15 @@ router.delete('/memories', async (req, res) => {
 // Context Compression Endpoints
 // ============================================
 
+// GET /api/chat/compression/config - Get compression configuration
+router.get('/compression/config', (req, res) => {
+  res.json({
+    threshold: compressionService.compressionThreshold,
+    keepRecentMessages: compressionService.keepRecentMessages,
+    minimumMessages: compressionService.keepRecentMessages + 1
+  });
+});
+
 // POST /api/chat/compress/:id - Manually compress conversation context
 router.post('/compress/:id', async (req, res) => {
   try {
@@ -737,14 +746,17 @@ router.post('/compress/:id', async (req, res) => {
       return res.status(400).json({ error: 'Conversation already compressed' });
     }
 
-    // Need at least 6 messages to compress (keep last 5)
-    if (conversation.length < 6) {
-      return res.status(400).json({ error: 'Not enough messages to compress (minimum 6 required)' });
+    // Need at least N+1 messages to compress (where N is the number of messages to keep)
+    const minMessages = compressionService.keepRecentMessages + 1;
+    if (conversation.length < minMessages) {
+      return res.status(400).json({
+        error: `Not enough messages to compress (minimum ${minMessages} required)`
+      });
     }
 
     logger.info(`Manual compression triggered for conversation ${id}`);
 
-    // Compress messages (keep last 5 messages uncompressed)
+    // Compress messages (keeps recent messages uncompressed based on config)
     const compressionResult = await compressionService.compressMessages(conversation);
 
     // Update compression metadata

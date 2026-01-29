@@ -10,9 +10,6 @@
 [ ] - have a global save file for the logs. only delete history if user wants it manually
 
 
-[ ] - theres a problem when loading json from the database. look into it seeing the terminal api call logs
-
-
 # Low priority
 [ ] - resolve a bug of chat being kept expanded after sending a message
 [ ] - The stop buttom only works on the frontend. the model doesnt actually stop. theres some backend stuff related but not working.
