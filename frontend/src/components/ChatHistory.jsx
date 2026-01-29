@@ -88,7 +88,12 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
       const data = await response.json();
 
       if (data.messages) {
-        onSelectConversation(conversationId, data.messages, data.usage);
+        const compressionInfo = {
+          compressionSummary: data.compressionSummary || null,
+          compressedAt: data.compressedAt || null,
+          compressedMessageCount: data.compressedMessageCount || 0
+        };
+        onSelectConversation(conversationId, data.messages, data.usage, compressionInfo);
       }
     } catch (err) {
       console.error('Failed to load conversation:', err);

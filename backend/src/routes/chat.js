@@ -3,12 +3,16 @@ import { llmClient } from '../services/llmClient.js';
 import { chatPersistence } from '../services/chatPersistence.js';
 import { personaManager } from '../services/personaManager.js';
 import { memoryManager } from '../services/memoryManager.js';
+import { compressionService } from '../services/compressionService.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
 // Store conversation history in memory (use a database in production)
 const conversations = new Map();
+
+// Store compression metadata for each conversation
+const compressionMetadata = new Map();
 
 // Store logs for the current session
 const sessionLogs = [];
@@ -44,35 +48,45 @@ router.post('/', async (req, res) => {
     }
 
     const conversation = conversations.get(conversationId);
-    
+
+    // Get or initialize compression metadata
+    if (!compressionMetadata.has(conversationId)) {
+      compressionMetadata.set(conversationId, {
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+    }
+    const compressionMeta = compressionMetadata.get(conversationId);
+
     // Log conversation state for debugging
     logger.info(`Sending message to conversation ${conversationId}`, {
       existingMessages: conversation.length,
-      conversationPreview: conversation.slice(-3).map(m => ({ 
-        role: m.role, 
+      compressedMessages: compressionMeta.compressedMessageCount,
+      hasCompression: !!compressionMeta.compressionSummary,
+      conversationPreview: conversation.slice(-3).map(m => ({
+        role: m.role,
         contentLength: m.content?.length || 0,
         hasToolCalls: !!m.tool_calls
       }))
     });
-    
-    // Ensure we have a fresh copy of the conversation array with proper format
-    const conversationForLLM = conversation.map(msg => ({
-      role: msg.role,
-      content: msg.content || '',
-      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
-      ...(msg.name && { name: msg.name }),
-      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
-    }));
 
-    // Always add fresh system message with current memories at the beginning
-    // This ensures the assistant always has access to the latest memories
-    const systemMessage = personaManager.getSystemMessage();
-    conversationForLLM.unshift({ role: 'system', content: systemMessage });
-    logger.info('Added system message with memories to conversation');
-
-    // Add the new user message
-    conversationForLLM.push({ role: 'user', content: message });
+    // Add the new user message to conversation
     conversation.push({ role: 'user', content: message });
+
+    // Build context for LLM (with compression if applicable)
+    const systemMessage = personaManager.getSystemMessage();
+    const conversationForLLM = compressionService.buildCompressedContext(
+      conversation,
+      compressionMeta.compressionSummary,
+      compressionMeta.compressedMessageCount,
+      systemMessage
+    );
+
+    logger.info('Built conversation context for LLM', {
+      totalMessages: conversationForLLM.length,
+      hasCompression: !!compressionMeta.compressionSummary
+    });
 
     // Track tool calls
     const toolCalls = [];
@@ -98,12 +112,43 @@ router.post('/', async (req, res) => {
       toolCalls: toolCalls.length
     });
 
+    // Check if compression is needed
+    const shouldCompress = compressionService.shouldCompress(response.usage?.total_tokens || 0);
+    if (shouldCompress && !compressionMeta.compressionSummary) {
+      try {
+        logger.info(`Context size ${response.usage.total_tokens} exceeds threshold, triggering compression`);
+
+        // Compress messages (keep last 5 messages uncompressed)
+        const compressionResult = await compressionService.compressMessages(conversation);
+
+        // Update compression metadata
+        compressionMeta.compressionSummary = compressionResult.summary;
+        compressionMeta.compressedAt = new Date().toISOString();
+        compressionMeta.compressedMessageCount = compressionResult.compressedCount;
+
+        // Mark compressed messages
+        for (let i = 0; i < compressionResult.compressedCount; i++) {
+          conversation[i].isCompressed = true;
+        }
+
+        logger.info(`Compressed ${compressionResult.compressedCount} messages`, {
+          summaryLength: compressionResult.summary.length
+        });
+      } catch (compressionError) {
+        logger.error('Failed to compress conversation:', compressionError);
+        // Don't fail the request if compression fails
+      }
+    }
+
     // Auto-save conversation to database
     try {
       const now = new Date().toISOString();
       const metadata = {
         lastMessageAt: now,
-        contextUsage: response.usage
+        contextUsage: response.usage,
+        compressionSummary: compressionMeta.compressionSummary,
+        compressedAt: compressionMeta.compressedAt,
+        compressedMessageCount: compressionMeta.compressedMessageCount
       };
 
       // If this is the first message (conversation has 2 messages: user + assistant),
@@ -152,35 +197,45 @@ router.post('/stream', async (req, res) => {
     }
 
     const conversation = conversations.get(conversationId);
-    
+
+    // Get or initialize compression metadata
+    if (!compressionMetadata.has(conversationId)) {
+      compressionMetadata.set(conversationId, {
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+    }
+    const compressionMeta = compressionMetadata.get(conversationId);
+
     // Log conversation state for debugging
     logger.info(`Streaming message to conversation ${conversationId}`, {
       existingMessages: conversation.length,
-      conversationPreview: conversation.slice(-3).map(m => ({ 
-        role: m.role, 
+      compressedMessages: compressionMeta.compressedMessageCount,
+      hasCompression: !!compressionMeta.compressionSummary,
+      conversationPreview: conversation.slice(-3).map(m => ({
+        role: m.role,
         contentLength: m.content?.length || 0,
         hasToolCalls: !!m.tool_calls
       }))
     });
-    
-    // Ensure we have a fresh copy of the conversation array to avoid mutation issues
-    const conversationForLLM = conversation.map(msg => ({
-      role: msg.role,
-      content: msg.content || '',
-      ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
-      ...(msg.name && { name: msg.name }),
-      ...(msg.tool_call_id && { tool_call_id: msg.tool_call_id })
-    }));
 
-    // Always add fresh system message with current memories at the beginning
-    // This ensures the assistant always has access to the latest memories
-    const systemMessage = personaManager.getSystemMessage();
-    conversationForLLM.unshift({ role: 'system', content: systemMessage });
-    logger.info('Added system message with memories to conversation (streaming)');
-
-    // Add the new user message
-    conversationForLLM.push({ role: 'user', content: message });
+    // Add the new user message to conversation
     conversation.push({ role: 'user', content: message });
+
+    // Build context for LLM (with compression if applicable)
+    const systemMessage = personaManager.getSystemMessage();
+    const conversationForLLM = compressionService.buildCompressedContext(
+      conversation,
+      compressionMeta.compressionSummary,
+      compressionMeta.compressedMessageCount,
+      systemMessage
+    );
+
+    logger.info('Built conversation context for LLM', {
+      totalMessages: conversationForLLM.length,
+      hasCompression: !!compressionMeta.compressionSummary
+    });
 
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -241,12 +296,54 @@ router.post('/stream', async (req, res) => {
       }
     }
 
+    // Check if compression is needed
+    const shouldCompress = compressionService.shouldCompress(result.usage?.total_tokens || 0);
+    if (shouldCompress && !compressionMeta.compressionSummary) {
+      try {
+        logger.info(`Context size ${result.usage.total_tokens} exceeds threshold, triggering compression`);
+
+        // Compress messages (keep last 5 messages uncompressed)
+        const compressionResult = await compressionService.compressMessages(conversation);
+
+        // Update compression metadata
+        compressionMeta.compressionSummary = compressionResult.summary;
+        compressionMeta.compressedAt = new Date().toISOString();
+        compressionMeta.compressedMessageCount = compressionResult.compressedCount;
+
+        // Mark compressed messages
+        for (let i = 0; i < compressionResult.compressedCount; i++) {
+          conversation[i].isCompressed = true;
+        }
+
+        logger.info(`Compressed ${compressionResult.compressedCount} messages`, {
+          summaryLength: compressionResult.summary.length
+        });
+
+        // Notify client about compression
+        try {
+          res.write(`data: ${JSON.stringify({
+            type: 'compression',
+            compressedCount: compressionResult.compressedCount,
+            summary: compressionResult.summary
+          })}\n\n`);
+        } catch (err) {
+          // Client may have disconnected
+        }
+      } catch (compressionError) {
+        logger.error('Failed to compress conversation:', compressionError);
+        // Don't fail the request if compression fails
+      }
+    }
+
     // Auto-save conversation to database
     try {
       const now = new Date().toISOString();
       const metadata = {
         lastMessageAt: now,
-        contextUsage: result.usage
+        contextUsage: result.usage,
+        compressionSummary: compressionMeta.compressionSummary,
+        compressedAt: compressionMeta.compressedAt,
+        compressedMessageCount: compressionMeta.compressedMessageCount
       };
 
       // If this is the first message (conversation has 2 messages: user + assistant),
@@ -405,7 +502,14 @@ router.get('/history/:id', async (req, res) => {
     // Load into memory for continued chat - this ensures context is preserved
     conversations.set(id, normalizedMessages);
 
-    logger.info(`Conversation loaded into memory: ${id} (${normalizedMessages.length} messages)`);
+    // Load compression metadata into memory
+    compressionMetadata.set(id, {
+      compressionSummary: metadata.compressionSummary || null,
+      compressedAt: metadata.compressedAt || null,
+      compressedMessageCount: metadata.compressedMessageCount || 0
+    });
+
+    logger.info(`Conversation loaded into memory: ${id} (${normalizedMessages.length} messages, ${metadata.compressedMessageCount || 0} compressed)`);
 
     // Debug log to see what we're sending to frontend
     normalizedMessages.forEach((msg, idx) => {
@@ -421,7 +525,10 @@ router.get('/history/:id', async (req, res) => {
     res.json({
       id,
       messages: normalizedMessages,
-      usage: metadata.contextUsage || null
+      usage: metadata.contextUsage || null,
+      compressionSummary: metadata.compressionSummary || null,
+      compressedAt: metadata.compressedAt || null,
+      compressedMessageCount: metadata.compressedMessageCount || 0
     });
   } catch (error) {
     logger.error('Failed to load conversation:', error);
@@ -600,6 +707,77 @@ router.delete('/memories', async (req, res) => {
     }
   } catch (error) {
     logger.error('Failed to clear memories:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// Context Compression Endpoints
+// ============================================
+
+// POST /api/chat/compress/:id - Manually compress conversation context
+router.post('/compress/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!conversations.has(id)) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const conversation = conversations.get(id);
+
+    // Check if already compressed
+    const compressionMeta = compressionMetadata.get(id) || {
+      compressionSummary: null,
+      compressedAt: null,
+      compressedMessageCount: 0
+    };
+
+    if (compressionMeta.compressionSummary) {
+      return res.status(400).json({ error: 'Conversation already compressed' });
+    }
+
+    // Need at least 6 messages to compress (keep last 5)
+    if (conversation.length < 6) {
+      return res.status(400).json({ error: 'Not enough messages to compress (minimum 6 required)' });
+    }
+
+    logger.info(`Manual compression triggered for conversation ${id}`);
+
+    // Compress messages (keep last 5 messages uncompressed)
+    const compressionResult = await compressionService.compressMessages(conversation);
+
+    // Update compression metadata
+    compressionMeta.compressionSummary = compressionResult.summary;
+    compressionMeta.compressedAt = new Date().toISOString();
+    compressionMeta.compressedMessageCount = compressionResult.compressedCount;
+    compressionMetadata.set(id, compressionMeta);
+
+    // Mark compressed messages
+    for (let i = 0; i < compressionResult.compressedCount; i++) {
+      conversation[i].isCompressed = true;
+    }
+
+    logger.info(`Compressed ${compressionResult.compressedCount} messages for conversation ${id}`);
+
+    // Save to database
+    const metadata = {
+      lastMessageAt: new Date().toISOString(),
+      compressionSummary: compressionMeta.compressionSummary,
+      compressedAt: compressionMeta.compressedAt,
+      compressedMessageCount: compressionMeta.compressedMessageCount
+    };
+
+    await chatPersistence.saveConversation(id, conversation, metadata);
+
+    res.json({
+      message: 'Conversation compressed successfully',
+      compressedCount: compressionResult.compressedCount,
+      summary: compressionResult.summary,
+      compressedAt: compressionMeta.compressedAt
+    });
+  } catch (error) {
+    logger.error('Failed to compress conversation:', error);
     res.status(500).json({ error: error.message });
   }
 });

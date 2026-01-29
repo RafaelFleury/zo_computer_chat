@@ -16,6 +16,11 @@ function App() {
   // Current messages synced FROM ChatInterface (for FaceTimeView)
   const [displayMessages, setDisplayMessages] = useState([]);
   const [usage, setUsage] = useState(null);
+  const [compressionInfo, setCompressionInfo] = useState({
+    compressionSummary: null,
+    compressedAt: null,
+    compressedMessageCount: 0
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [authEnabled, setAuthEnabled] = useState(true);
@@ -64,6 +69,11 @@ function App() {
       setLoadedMessages([]);
       setDisplayMessages([]);
       setUsage(null);
+      setCompressionInfo({
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
     } catch (err) {
       console.error("Failed to create new conversation:", err);
       alert(`Failed to create new conversation: ${err.message}`);
@@ -71,11 +81,16 @@ function App() {
   };
 
   // Select existing conversation
-  const handleSelectConversation = (id, loadedMsgs, loadedUsage) => {
+  const handleSelectConversation = (id, loadedMsgs, loadedUsage, loadedCompressionInfo) => {
     setConversationId(id);
     setLoadedMessages(loadedMsgs);
     setDisplayMessages(loadedMsgs);
     setUsage(loadedUsage);
+    setCompressionInfo(loadedCompressionInfo || {
+      compressionSummary: null,
+      compressedAt: null,
+      compressedMessageCount: 0
+    });
   };
 
   // Handle streaming state changes from ChatInterface
@@ -152,6 +167,7 @@ function App() {
             conversationId={conversationId}
             initialMessages={loadedMessages}
             initialUsage={usage}
+            initialCompressionInfo={compressionInfo}
             onConversationChange={(id) => setConversationId(id)}
             onMessageSent={refreshChatHistory}
             onProcessingChange={setIsProcessing}

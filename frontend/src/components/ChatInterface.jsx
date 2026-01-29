@@ -41,6 +41,7 @@ const ChatInterface = forwardRef(function ChatInterface(
     conversationId,
     initialMessages,
     initialUsage,
+    initialCompressionInfo,
     onConversationChange,
     onMessageSent,
     onProcessingChange,
@@ -59,6 +60,12 @@ const ChatInterface = forwardRef(function ChatInterface(
   const [usage, setUsage] = useState(null);
   const [showContext, setShowContext] = useState(false);
   const [abortController, setAbortController] = useState(null);
+  const [compressionInfo, setCompressionInfo] = useState({
+    compressionSummary: null,
+    compressedAt: null,
+    compressedMessageCount: 0
+  });
+  const [compressing, setCompressing] = useState(false);
   const messagesEndRef = useRef(null);
   const idleTimeoutRef = useRef(null);
   const inputRef = useRef(null);
@@ -108,6 +115,13 @@ const ChatInterface = forwardRef(function ChatInterface(
     }
   }, [initialUsage]);
 
+  // Update compression info when initialCompressionInfo changes
+  useEffect(() => {
+    if (initialCompressionInfo !== undefined) {
+      setCompressionInfo(initialCompressionInfo);
+    }
+  }, [initialCompressionInfo]);
+
   // Update conversationId when prop changes
   useEffect(() => {
     console.log("Conversation ID changed:", conversationId);
@@ -150,6 +164,44 @@ const ChatInterface = forwardRef(function ChatInterface(
       setLoading(false);
       onProcessingChange?.(false);
       updateStreamingState("idle");
+    }
+  };
+
+  const handleCompress = async () => {
+    if (!currentConversationId || compressing || compressionInfo.compressionSummary) {
+      return;
+    }
+
+    setCompressing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `${api.API_URL}/api/chat/compress/${currentConversationId}`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Compression failed");
+      }
+
+      const data = await response.json();
+
+      setCompressionInfo({
+        compressionSummary: data.summary,
+        compressedAt: data.compressedAt,
+        compressedMessageCount: data.compressedCount
+      });
+
+      console.log(`Compressed ${data.compressedCount} messages`);
+    } catch (err) {
+      console.error("Failed to compress conversation:", err);
+      setError(`Compression failed: ${err.message}`);
+    } finally {
+      setCompressing(false);
     }
   };
 
@@ -324,6 +376,15 @@ const ChatInterface = forwardRef(function ChatInterface(
         // onUsage - called when usage info is received
         (usageData) => {
           setUsage(usageData);
+        },
+        // onCompression - called when compression occurs
+        (compressionData) => {
+          setCompressionInfo({
+            compressionSummary: compressionData.summary,
+            compressedAt: new Date().toISOString(),
+            compressedMessageCount: compressionData.compressedCount
+          });
+          console.log(`Auto-compressed ${compressionData.compressedCount} messages`);
         },
         // Pass abort signal
         controller.signal,
@@ -512,15 +573,33 @@ const ChatInterface = forwardRef(function ChatInterface(
       </form>
       {showContext && usage && (
         <div className="context-footer">
-          <span className="context-stat">
-            Prompt: {usage.prompt_tokens?.toLocaleString() || 0}
-          </span>
-          <span className="context-stat">
-            Completion: {usage.completion_tokens?.toLocaleString() || 0}
-          </span>
-          <span className="context-stat">
-            Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
-          </span>
+          <div className="context-stats">
+            <span className="context-stat">
+              Prompt: {usage.prompt_tokens?.toLocaleString() || 0}
+            </span>
+            <span className="context-stat">
+              Completion: {usage.completion_tokens?.toLocaleString() || 0}
+            </span>
+            <span className="context-stat">
+              Total: {usage.total_tokens?.toLocaleString() || 0} / 128K
+            </span>
+            {compressionInfo.compressionSummary && (
+              <span className="context-stat compression-info">
+                Compressed: {compressionInfo.compressedMessageCount} messages
+              </span>
+            )}
+          </div>
+          {!compressionInfo.compressionSummary && currentConversationId && (
+            <button
+              type="button"
+              className="compress-context-button"
+              onClick={handleCompress}
+              disabled={compressing || messages.length < 6}
+              title={messages.length < 6 ? "Need at least 6 messages to compress" : "Compress conversation context"}
+            >
+              {compressing ? '...' : '[compress context]'}
+            </button>
+          )}
         </div>
       )}
     </div>

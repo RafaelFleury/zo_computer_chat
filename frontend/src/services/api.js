@@ -27,7 +27,7 @@ export const api = {
     return response.json();
   },
 
-  async streamMessage(message, conversationId = 'default', onChunk, onToolCall, onUsage, signal) {
+  async streamMessage(message, conversationId = 'default', onChunk, onToolCall, onUsage, onCompression, signal) {
     // Note: Using fetch with ReadableStream instead of EventSource for POST support
     const response = await fetch(`${API_URL}/api/chat/stream`, {
       method: 'POST',
@@ -66,6 +66,8 @@ export const api = {
               onToolCall?.(data);
             } else if (data.type === 'usage') {
               onUsage?.(data.usage);
+            } else if (data.type === 'compression') {
+              onCompression?.(data);
             } else if (data.type === 'done') {
               return;
             } else if (data.type === 'error') {

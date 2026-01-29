@@ -57,12 +57,18 @@ class ChatPersistence {
 
         // Upsert conversation metadata
         const upsertConversation = db.prepare(`
-          INSERT INTO conversations (id, created_at, last_message_at, message_count, context_usage, updated_at)
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          INSERT INTO conversations (
+            id, created_at, last_message_at, message_count, context_usage,
+            compression_summary, compressed_at, compressed_message_count, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(id) DO UPDATE SET
             last_message_at = excluded.last_message_at,
             message_count = excluded.message_count,
             context_usage = excluded.context_usage,
+            compression_summary = excluded.compression_summary,
+            compressed_at = excluded.compressed_at,
+            compressed_message_count = excluded.compressed_message_count,
             updated_at = CURRENT_TIMESTAMP
         `);
 
@@ -71,7 +77,10 @@ class ChatPersistence {
           createdAt,
           metadata.lastMessageAt || new Date().toISOString(),
           messages.length,
-          metadata.contextUsage ? JSON.stringify(metadata.contextUsage) : null
+          metadata.contextUsage ? JSON.stringify(metadata.contextUsage) : null,
+          metadata.compressionSummary || null,
+          metadata.compressedAt || null,
+          metadata.compressedMessageCount || 0
         );
 
         // Delete old messages for this conversation
@@ -82,8 +91,8 @@ class ChatPersistence {
         const insertMessage = db.prepare(`
           INSERT INTO messages (
             conversation_id, role, content, tool_calls, tool_calls_llm,
-            tool_call_id, name, sequence_number
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            tool_call_id, name, sequence_number, is_compressed
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         messages.forEach((message, index) => {
@@ -95,7 +104,8 @@ class ChatPersistence {
             message.tool_calls ? JSON.stringify(message.tool_calls) : null,
             message.tool_call_id || null,
             message.name || null,
-            index
+            index,
+            message.isCompressed ? 1 : 0
           );
         });
       });
@@ -158,7 +168,8 @@ class ChatPersistence {
 
       // Load conversation metadata
       const conversation = db.prepare(`
-        SELECT id, created_at, last_message_at, message_count, context_usage
+        SELECT id, created_at, last_message_at, message_count, context_usage,
+               compression_summary, compressed_at, compressed_message_count
         FROM conversations
         WHERE id = ? AND deleted_at IS NULL
       `).get(conversationId);
@@ -169,7 +180,7 @@ class ChatPersistence {
 
       // Load messages ordered by sequence_number
       const messageRows = db.prepare(`
-        SELECT role, content, tool_calls, tool_calls_llm, tool_call_id, name
+        SELECT role, content, tool_calls, tool_calls_llm, tool_call_id, name, is_compressed
         FROM messages
         WHERE conversation_id = ?
         ORDER BY sequence_number ASC
@@ -201,6 +212,10 @@ class ChatPersistence {
           message.name = row.name;
         }
 
+        if (row.is_compressed) {
+          message.isCompressed = true;
+        }
+
         return message;
       });
 
@@ -212,7 +227,10 @@ class ChatPersistence {
           createdAt: conversation.created_at,
           lastMessageAt: conversation.last_message_at,
           messageCount: conversation.message_count,
-          contextUsage: conversation.context_usage ? JSON.parse(conversation.context_usage) : null
+          contextUsage: conversation.context_usage ? JSON.parse(conversation.context_usage) : null,
+          compressionSummary: conversation.compression_summary || null,
+          compressedAt: conversation.compressed_at || null,
+          compressedMessageCount: conversation.compressed_message_count || 0
         }
       };
     } catch (error) {

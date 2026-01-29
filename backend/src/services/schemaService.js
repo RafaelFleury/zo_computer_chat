@@ -17,7 +17,10 @@ class SchemaService {
             message_count INTEGER NOT NULL DEFAULT 0,
             context_usage TEXT,
             deleted_at TEXT DEFAULT NULL,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            compression_summary TEXT DEFAULT NULL,
+            compressed_at TEXT DEFAULT NULL,
+            compressed_message_count INTEGER DEFAULT 0
           )
         `);
 
@@ -34,6 +37,7 @@ class SchemaService {
             name TEXT,
             sequence_number INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            is_compressed INTEGER DEFAULT 0,
             FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
           )
         `);
@@ -63,9 +67,48 @@ class SchemaService {
     }
   }
 
+  migrateSchema() {
+    const db = databaseManager.getConnection();
+
+    try {
+      // Check if compression columns exist
+      const conversationsInfo = db.pragma('table_info(conversations)');
+      const hasCompressionSummary = conversationsInfo.some(col => col.name === 'compression_summary');
+
+      if (!hasCompressionSummary) {
+        logger.info('Running migration: adding compression columns to conversations table');
+        db.exec(`
+          ALTER TABLE conversations ADD COLUMN compression_summary TEXT DEFAULT NULL;
+        `);
+        db.exec(`
+          ALTER TABLE conversations ADD COLUMN compressed_at TEXT DEFAULT NULL;
+        `);
+        db.exec(`
+          ALTER TABLE conversations ADD COLUMN compressed_message_count INTEGER DEFAULT 0;
+        `);
+      }
+
+      const messagesInfo = db.pragma('table_info(messages)');
+      const hasIsCompressed = messagesInfo.some(col => col.name === 'is_compressed');
+
+      if (!hasIsCompressed) {
+        logger.info('Running migration: adding is_compressed column to messages table');
+        db.exec(`
+          ALTER TABLE messages ADD COLUMN is_compressed INTEGER DEFAULT 0;
+        `);
+      }
+
+      logger.info('Schema migration completed successfully');
+    } catch (error) {
+      logger.error('Failed to migrate database schema:', error);
+      throw error;
+    }
+  }
+
   initialize() {
     try {
       this.createSchema();
+      this.migrateSchema();
       logger.info('Database schema initialized');
     } catch (error) {
       logger.error('Failed to initialize database schema:', error);
