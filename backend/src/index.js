@@ -12,6 +12,7 @@ import { zoMCP } from './services/mcpClient.js';
 import { llmClient } from './services/llmClient.js';
 import { personaManager } from './services/personaManager.js';
 import { memoryManager } from './services/memoryManager.js';
+import { settingsManager } from './services/settingsManager.js';
 import chatRouter from './routes/chat.js';
 
 // ES module __dirname equivalent
@@ -116,8 +117,12 @@ async function start() {
     schemaService.initialize();
     logger.info('Database initialized');
 
-    // Initialize MCP client (required for persona manager and memory manager)
+    // Initialize MCP client (required for settings, persona, and memory managers)
     await zoMCP.connect(process.env.ZO_API_KEY);
+
+    // Initialize Settings Manager FIRST (may be a dependency for other services)
+    await settingsManager.initialize();
+    logger.info('Settings Manager initialized');
 
     // Initialize Memory Manager (depends on MCP)
     await memoryManager.initialize();

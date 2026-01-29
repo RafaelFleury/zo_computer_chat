@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
 import DraggableBubble from "./DraggableBubble";
 import "./UserInputBubble.css";
 
@@ -13,27 +14,54 @@ export default function UserInputBubble({
   initialPosition = { x: 0, y: 0 },
   assistantMessage = "",
   isLoading = false,
+  userMessage = "",
 }) {
   const [input, setInput] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const textareaRef = useRef(null);
   const TRUNCATE_LENGTH = 150;
 
-  // Truncate message logic
-  const { displayText, isTruncated } = useMemo(() => {
-    if (!assistantMessage || isExpanded) {
-      return { displayText: assistantMessage, isTruncated: false };
-    }
-
-    if (assistantMessage.length > TRUNCATE_LENGTH) {
+  // Truncate message logic - combine user and assistant messages
+  const { displayUserText, displayAssistantText, isTruncated } = useMemo(() => {
+    if (isExpanded) {
       return {
-        displayText: assistantMessage.slice(0, TRUNCATE_LENGTH) + "...",
-        isTruncated: true,
+        displayUserText: userMessage,
+        displayAssistantText: assistantMessage,
+        isTruncated: false,
       };
     }
 
-    return { displayText: assistantMessage, isTruncated: false };
-  }, [assistantMessage, isExpanded]);
+    // Calculate combined length for truncation
+    const combinedLength = (userMessage?.length || 0) + (assistantMessage?.length || 0);
+
+    if (combinedLength > TRUNCATE_LENGTH) {
+      // Truncate assistant message, keep user message intact if possible
+      const availableLength = TRUNCATE_LENGTH - (userMessage?.length || 0);
+
+      if (availableLength > 50) {
+        // Enough space for both
+        return {
+          displayUserText: userMessage,
+          displayAssistantText: assistantMessage?.slice(0, availableLength) + "...",
+          isTruncated: true,
+        };
+      } else {
+        // Truncate both
+        const halfLength = Math.floor(TRUNCATE_LENGTH / 2);
+        return {
+          displayUserText: userMessage?.slice(0, halfLength) + "...",
+          displayAssistantText: assistantMessage?.slice(0, halfLength) + "...",
+          isTruncated: true,
+        };
+      }
+    }
+
+    return {
+      displayUserText: userMessage,
+      displayAssistantText: assistantMessage,
+      isTruncated: false,
+    };
+  }, [userMessage, assistantMessage, isExpanded]);
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -110,7 +138,7 @@ export default function UserInputBubble({
           </div>
         </form>
 
-        {/* Assistant response section - only shows after first message */}
+        {/* Message history section - shows last user message + assistant response */}
         {hasResponse && (
           <div className="response-section">
             <div className="response-divider" />
@@ -122,12 +150,29 @@ export default function UserInputBubble({
               </div>
             ) : (
               <>
-                <div className={`response-text ${isExpanded ? "scrollable" : ""}`}>
-                  {displayText}
+                <div className={`message-history ${isExpanded ? "scrollable" : ""}`}>
+                  {/* Last user message */}
+                  {displayUserText && (
+                    <div className="user-message-preview">
+                      <div className="message-role-label">You</div>
+                      <div className="user-text">{displayUserText}</div>
+                    </div>
+                  )}
+
+                  {/* Assistant response with markdown */}
+                  {displayAssistantText && (
+                    <div className="assistant-message-preview">
+                      <div className="message-role-label">Zo</div>
+                      <div className="assistant-text">
+                        <ReactMarkdown>{displayAssistantText}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {(isTruncated || isExpanded) &&
-                  assistantMessage.length > TRUNCATE_LENGTH && (
+                  ((userMessage?.length || 0) + (assistantMessage?.length || 0) >
+                    TRUNCATE_LENGTH) && (
                     <button
                       className="expand-button"
                       onClick={(e) => {

@@ -117,7 +117,16 @@ export default function FaceTimeView({
     }
   }, [streamingState.status, isSleeping]);
 
-  // Get last assistant message for speech bubble
+  // Get last user and assistant messages for bubble
+  const lastUserMessage = useMemo(() => {
+    const userMessages = messages.filter(
+      (m) => m.role === "user" && m.content,
+    );
+    return userMessages.length > 0
+      ? userMessages[userMessages.length - 1].content
+      : "";
+  }, [messages]);
+
   const lastAssistantMessage = useMemo(() => {
     const assistantMessages = messages.filter(
       (m) => m.role === "assistant" && m.content,
@@ -198,6 +207,7 @@ export default function FaceTimeView({
             onSend={onSendMessage}
             disabled={isLoading}
             initialPosition={inputBubblePosition}
+            userMessage={lastUserMessage}
             assistantMessage={lastAssistantMessage}
             isLoading={isLoading && streamingState.status === "talking"}
           />

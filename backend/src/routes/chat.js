@@ -4,6 +4,7 @@ import { chatPersistence } from '../services/chatPersistence.js';
 import { personaManager } from '../services/personaManager.js';
 import { memoryManager } from '../services/memoryManager.js';
 import { compressionService } from '../services/compressionService.js';
+import { settingsManager } from '../services/settingsManager.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -734,10 +735,11 @@ router.delete('/memories', async (req, res) => {
 
 // GET /api/chat/compression/config - Get compression configuration
 router.get('/compression/config', (req, res) => {
+  const config = settingsManager.getCompressionSettings();
   res.json({
-    threshold: compressionService.compressionThreshold,
-    keepRecentMessages: compressionService.keepRecentMessages,
-    minimumMessages: compressionService.keepRecentMessages + 1
+    threshold: config.threshold,
+    keepRecentMessages: config.keepRecentMessages,
+    minimumMessages: config.keepRecentMessages + 1
   });
 });
 
@@ -813,6 +815,85 @@ router.post('/compress/:id', async (req, res) => {
     });
   } catch (error) {
     logger.error('Failed to compress conversation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// Settings Endpoints
+// ============================================
+
+// GET /api/chat/settings - Get all settings
+router.get('/settings', (req, res) => {
+  try {
+    const settings = settingsManager.getSettings();
+    res.json(settings);
+  } catch (error) {
+    logger.error('Failed to get settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/chat/settings - Update settings
+router.put('/settings', async (req, res) => {
+  try {
+    const updates = req.body;
+
+    // Validate if compression settings are being updated
+    if (updates.compression) {
+      settingsManager.validateCompressionSettings(updates.compression);
+    }
+
+    // Update settings
+    const updatedSettings = await settingsManager.updateSettings(updates);
+
+    // Reload compression service with new settings
+    compressionService.reloadConfig();
+
+    logger.info('Settings updated successfully');
+
+    res.json(updatedSettings);
+  } catch (error) {
+    logger.error('Failed to update settings:', error);
+
+    // Return 400 for validation errors, 500 for server errors
+    const statusCode = error.message.includes('must be') ||
+                       error.message.includes('required') ? 400 : 500;
+
+    res.status(statusCode).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/settings/reload - Reload settings from file
+router.post('/settings/reload', async (req, res) => {
+  try {
+    const settings = await settingsManager.reloadSettings();
+
+    // Reload compression service with reloaded settings
+    compressionService.reloadConfig();
+
+    logger.info('Settings reloaded successfully');
+
+    res.json(settings);
+  } catch (error) {
+    logger.error('Failed to reload settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/chat/settings/reset - Reset settings to defaults
+router.post('/settings/reset', async (req, res) => {
+  try {
+    const settings = await settingsManager.resetSettings();
+
+    // Reload compression service with reset settings
+    compressionService.reloadConfig();
+
+    logger.info('Settings reset to defaults');
+
+    res.json(settings);
+  } catch (error) {
+    logger.error('Failed to reset settings:', error);
     res.status(500).json({ error: error.message });
   }
 });

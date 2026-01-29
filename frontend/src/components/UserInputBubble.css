@@ -140,7 +140,51 @@
   background: var(--border);
 }
 
-.response-text {
+/* Message history - shows user + assistant messages */
+.message-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.message-history.scrollable {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: var(--space-sm);
+}
+
+/* Custom scrollbar for message history */
+.message-history.scrollable::-webkit-scrollbar {
+  width: 4px;
+}
+
+.message-history.scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-history.scrollable::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* Message role labels */
+.message-role-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  font-family: var(--font-display);
+}
+
+/* User message preview */
+.user-message-preview {
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-blue);
+}
+
+.user-text {
   color: var(--text-primary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
@@ -148,24 +192,77 @@
   white-space: pre-wrap;
 }
 
-.response-text.scrollable {
-  max-height: 250px;
-  overflow-y: auto;
-  padding-right: var(--space-sm);
+/* Assistant message preview */
+.assistant-message-preview {
+  padding: var(--space-sm);
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-purple);
 }
 
-/* Custom scrollbar for response */
-.response-text.scrollable::-webkit-scrollbar {
-  width: 4px;
+.assistant-text {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  word-wrap: break-word;
 }
 
-.response-text.scrollable::-webkit-scrollbar-track {
+/* Markdown styling in assistant text */
+.assistant-text p {
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.assistant-text p:last-child {
+  margin-bottom: 0;
+}
+
+.assistant-text code {
+  background: var(--bg-primary);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.assistant-text pre {
+  background: var(--bg-primary);
+  padding: var(--space-sm);
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: var(--space-xs) 0;
+}
+
+.assistant-text pre code {
   background: transparent;
+  padding: 0;
 }
 
-.response-text.scrollable::-webkit-scrollbar-thumb {
-  background: var(--accent);
-  border-radius: 2px;
+.assistant-text ul,
+.assistant-text ol {
+  margin: var(--space-xs) 0;
+  padding-left: 1.5em;
+}
+
+.assistant-text li {
+  margin: var(--space-xs) 0;
+}
+
+.assistant-text strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.assistant-text em {
+  font-style: italic;
+}
+
+.assistant-text a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.assistant-text a:hover {
+  color: var(--accent-light);
 }
 
 /* Expand/Collapse button */

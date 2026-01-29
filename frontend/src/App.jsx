@@ -4,6 +4,7 @@ import LogsViewer from "./components/LogsViewer";
 import ChatHistory from "./components/ChatHistory";
 import FaceTimeView from "./components/FaceTimeView";
 import MemoriesTab from "./components/MemoriesTab";
+import SettingsTab from "./components/SettingsTab";
 import Toast from "./components/Toast";
 import { API_URL } from "./services/api";
 import "./App.css";
@@ -161,6 +162,12 @@ function App() {
         >
           Memories
         </button>
+        <button
+          className={`tab ${activeTab === "settings" ? "active" : ""}`}
+          onClick={() => setActiveTab("settings")}
+        >
+          Settings
+        </button>
         <div className="connection-status"></div>
       </div>
 
@@ -204,6 +211,11 @@ function App() {
           className={activeTab === "memories" ? "tab-panel active" : "tab-panel"}
         >
           <MemoriesTab />
+        </div>
+        <div
+          className={activeTab === "settings" ? "tab-panel active" : "tab-panel"}
+        >
+          <SettingsTab />
         </div>
       </div>
     </div>

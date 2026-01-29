@@ -167,4 +167,39 @@ export const api = {
     if (!response.ok) throw new Error('Failed to reload memories');
     return response.json();
   },
+
+  async getSettings() {
+    const response = await fetch(`${API_URL}/api/chat/settings`);
+    if (!response.ok) throw new Error('Failed to fetch settings');
+    return response.json();
+  },
+
+  async updateSettings(updates) {
+    const response = await fetch(`${API_URL}/api/chat/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to update settings');
+    }
+    return response.json();
+  },
+
+  async reloadSettings() {
+    const response = await fetch(`${API_URL}/api/chat/settings/reload`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to reload settings');
+    return response.json();
+  },
+
+  async resetSettings() {
+    const response = await fetch(`${API_URL}/api/chat/settings/reset`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to reset settings');
+    return response.json();
+  },
 };

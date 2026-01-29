@@ -1,17 +1,27 @@
 import { llmClient } from './llmClient.js';
 import { logger } from '../utils/logger.js';
 import { memoryManager } from './memoryManager.js';
+import { settingsManager } from './settingsManager.js';
 
 class CompressionService {
   constructor() {
-    // Load configuration from environment with fallbacks
-    this.compressionThreshold = parseInt(process.env.COMPRESSION_THRESHOLD) || 6000; // 100K tokens default
-    this.keepRecentMessages = parseInt(process.env.COMPRESSION_KEEP_RECENT) || 0; // Keep last 5 messages default
+    this.loadConfig();
+  }
 
-    logger.info('Compression service initialized', {
+  loadConfig() {
+    const config = settingsManager.getCompressionSettings();
+    this.compressionThreshold = config.threshold;
+    this.keepRecentMessages = config.keepRecentMessages;
+
+    logger.info('Compression config loaded', {
       threshold: this.compressionThreshold,
       keepRecentMessages: this.keepRecentMessages
     });
+  }
+
+  reloadConfig() {
+    this.loadConfig();
+    logger.info('Compression config reloaded');
   }
 
   /**

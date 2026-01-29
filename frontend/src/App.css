@@ -26,6 +26,14 @@
   --accent: #2d6cdf;
   --accent-muted: rgba(45, 108, 223, 0.15);
   --accent-glow: rgba(45, 108, 223, 0.3);
+  --accent-light: #5b8df5;
+
+  /* Additional accent colors for UI elements */
+  --accent-purple: #8b5cf6;
+  --accent-purple-light: #a78bfa;
+  --accent-pink: #ff8a9b;
+  --accent-pink-light: #ffb6c1;
+  --accent-blue: #3b82f6;
 
   /* Semantic — Only for critical states */
   --semantic-success: #22c55e;
@@ -34,6 +42,7 @@
   /* Typography */
   --font-display: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
 
   /* Type scale — Larger for readability */
   --text-xs: 0.75rem;     /* 12px */
