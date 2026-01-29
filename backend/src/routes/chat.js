@@ -100,11 +100,19 @@ router.post('/', async (req, res) => {
 
     // Auto-save conversation to database
     try {
-      await chatPersistence.saveConversation(conversationId, conversation, {
-        // Don't pass createdAt - let saveConversation preserve existing value
-        lastMessageAt: new Date().toISOString(),
+      const now = new Date().toISOString();
+      const metadata = {
+        lastMessageAt: now,
         contextUsage: response.usage
-      });
+      };
+
+      // If this is the first message (conversation has 2 messages: user + assistant),
+      // set createdAt
+      if (conversation.length === 2) {
+        metadata.createdAt = now;
+      }
+
+      await chatPersistence.saveConversation(conversationId, conversation, metadata);
       logger.info(`Conversation auto-saved: ${conversationId}`);
     } catch (saveError) {
       logger.error('Failed to auto-save conversation:', saveError);
@@ -181,25 +189,16 @@ router.post('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
 
     const toolCalls = [];
-    let clientDisconnected = false;
-
-    // Detect client disconnect
-    req.on('close', () => {
-      clientDisconnected = true;
-      logger.warn(`Client disconnected during streaming: ${conversationId}`);
-    });
 
     // Stream response with full conversation history
     const result = await llmClient.streamChat(
       conversationForLLM,
       (chunk) => {
-        // Send chunk to client (ignore errors if client disconnected)
+        // Send chunk to client
         try {
-          if (!clientDisconnected) {
-            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-          }
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         } catch (err) {
-          logger.warn('Failed to write chunk to client (likely disconnected):', err.message);
+          // Client may have disconnected, but we continue processing
         }
       },
       (toolCallData) => {
@@ -207,16 +206,14 @@ router.post('/stream', async (req, res) => {
         addLog('tool_call', toolCallData);
         toolCalls.push(toolCallData);
 
-        // Notify client about tool call (ignore errors if client disconnected)
+        // Notify client about tool call
         try {
-          if (!clientDisconnected) {
-            res.write(`data: ${JSON.stringify({
-              type: 'tool_call',
-              ...toolCallData
-            })}\n\n`);
-          }
+          res.write(`data: ${JSON.stringify({
+            type: 'tool_call',
+            ...toolCallData
+          })}\n\n`);
         } catch (err) {
-          logger.warn('Failed to write tool call to client (likely disconnected):', err.message);
+          // Client may have disconnected, but we continue processing
         }
       }
     );
@@ -233,41 +230,45 @@ router.post('/stream', async (req, res) => {
       usage: result.usage
     });
 
-    // Send usage info before done event
-    if (result.usage && !clientDisconnected) {
+    // Send usage info
+    if (result.usage) {
       try {
         res.write(`data: ${JSON.stringify({
           type: 'usage',
           usage: result.usage
         })}\n\n`);
       } catch (err) {
-        logger.warn('Failed to write usage to client (likely disconnected):', err.message);
+        // Client may have disconnected, but we continue
       }
     }
 
-    // Auto-save conversation to database (ALWAYS save, even if client disconnected)
+    // Auto-save conversation to database
     try {
-      await chatPersistence.saveConversation(conversationId, conversation, {
-        // Don't pass createdAt - let saveConversation preserve existing value
-        lastMessageAt: new Date().toISOString(),
+      const now = new Date().toISOString();
+      const metadata = {
+        lastMessageAt: now,
         contextUsage: result.usage
-      });
+      };
+
+      // If this is the first message (conversation has 2 messages: user + assistant),
+      // set createdAt
+      if (conversation.length === 2) {
+        metadata.createdAt = now;
+      }
+
+      await chatPersistence.saveConversation(conversationId, conversation, metadata);
       logger.info(`Conversation auto-saved: ${conversationId}`);
     } catch (saveError) {
       logger.error('Failed to auto-save conversation:', saveError);
       // Don't fail the request if save fails
     }
 
-    // Send completion event (only if client still connected)
-    if (!clientDisconnected) {
-      try {
-        res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-        res.end();
-      } catch (err) {
-        logger.warn('Failed to send done event (client disconnected):', err.message);
-      }
-    } else {
-      logger.info(`Stream completed but client disconnected: ${conversationId}`);
+    // Send completion event
+    try {
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      res.end();
+    } catch (err) {
+      // Client may have disconnected, connection already closed
     }
 
   } catch (error) {
@@ -435,15 +436,8 @@ router.post('/history/new', async (req, res) => {
     const conversationId = chatPersistence.generateConversationId();
     conversations.set(conversationId, []);
 
-    // Immediately save to database with empty messages
-    const now = new Date().toISOString();
-    await chatPersistence.saveConversation(conversationId, [], {
-      createdAt: now,
-      lastMessageAt: now,
-      contextUsage: null
-    });
-
-    logger.info(`New conversation created and saved: ${conversationId}`);
+    // Don't save to database yet - wait for first message
+    logger.info(`New conversation created in memory: ${conversationId}`);
     res.json({ conversationId });
   } catch (error) {
     logger.error('Failed to create new conversation:', error);
