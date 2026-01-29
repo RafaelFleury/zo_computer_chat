@@ -72,8 +72,8 @@ class SettingsManager {
 
   getDefaultSettings() {
     // Try to read from .env first, otherwise use hardcoded defaults
-    const threshold = parseInt(process.env.COMPRESSION_THRESHOLD) || 6000;
-    const keepRecent = parseInt(process.env.COMPRESSION_KEEP_RECENT) || 0;
+    const threshold = parseInt(process.env.COMPRESSION_THRESHOLD) || 20000;
+    const keepRecent = parseInt(process.env.COMPRESSION_KEEP_RECENT) || 2;
 
     return {
       compression: {
