@@ -15,8 +15,57 @@ const conversations = new Map();
 // Store compression metadata for each conversation
 const compressionMetadata = new Map();
 
+// Store last activity timestamp for each conversation (for cleanup)
+const conversationActivity = new Map();
+
+// Track compression in progress for each conversation (prevent race conditions)
+const compressionLocks = new Map();
+
 // Store logs for the current session
 const sessionLogs = [];
+
+// Memory cleanup configuration
+const CONVERSATION_TTL = parseInt(process.env.CONVERSATION_TTL_HOURS || '24') * 60 * 60 * 1000; // Default 24 hours
+const CLEANUP_INTERVAL = 60 * 60 * 1000; // Run cleanup every 1 hour
+
+// Cleanup old conversations from memory
+function cleanupOldConversations() {
+  const now = Date.now();
+  let cleanedCount = 0;
+
+  for (const [id, lastActivity] of conversationActivity.entries()) {
+    if (now - lastActivity > CONVERSATION_TTL) {
+      conversations.delete(id);
+      compressionMetadata.delete(id);
+      conversationActivity.delete(id);
+      compressionLocks.delete(id);
+      cleanedCount++;
+      logger.info(`Cleaned up inactive conversation from memory: ${id}`);
+    }
+  }
+
+  if (cleanedCount > 0) {
+    logger.info(`Memory cleanup: removed ${cleanedCount} inactive conversations`);
+  }
+}
+
+// Start periodic cleanup
+setInterval(cleanupOldConversations, CLEANUP_INTERVAL);
+logger.info(`Memory cleanup scheduled: conversations inactive for ${CONVERSATION_TTL / (60 * 60 * 1000)} hours will be removed`);
+
+// Update conversation activity timestamp
+function touchConversation(conversationId) {
+  conversationActivity.set(conversationId, Date.now());
+}
+
+// Standard error response helper
+function sendError(res, statusCode, message, details = null) {
+  const error = { error: message };
+  if (details && process.env.NODE_ENV === 'development') {
+    error.details = details;
+  }
+  res.status(statusCode).json(error);
+}
 
 // Add log entry
 function addLog(type, data) {
@@ -36,7 +85,7 @@ router.post('/', async (req, res) => {
     const { message, conversationId = 'default' } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+      return sendError(res, 400, 'Message is required');
     }
 
     logger.info('Received chat message', { conversationId, message });
@@ -49,6 +98,7 @@ router.post('/', async (req, res) => {
     }
 
     const conversation = conversations.get(conversationId);
+    touchConversation(conversationId);
 
     // Get or initialize compression metadata
     if (!compressionMetadata.has(conversationId)) {
@@ -113,13 +163,16 @@ router.post('/', async (req, res) => {
       toolCalls: toolCalls.length
     });
 
-    // Check if compression is needed
+    // Check if compression is needed (with race condition protection)
     const shouldCompress = compressionService.shouldCompress(response.usage?.total_tokens || 0);
-    // Allow re-compression if: threshold exceeded AND (never compressed OR new messages added since last compression)
     const canCompress = shouldCompress && (!compressionMeta.compressionSummary || conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages);
+    const compressionInProgress = compressionLocks.get(conversationId);
 
-    if (canCompress) {
+    if (canCompress && !compressionInProgress) {
       try {
+        // Set lock to prevent concurrent compression
+        compressionLocks.set(conversationId, true);
+
         const isRecompression = !!compressionMeta.compressionSummary;
         logger.info(`Context size ${response.usage.total_tokens} exceeds threshold, triggering ${isRecompression ? 're-' : ''}compression`);
 
@@ -142,6 +195,9 @@ router.post('/', async (req, res) => {
       } catch (compressionError) {
         logger.error('Failed to compress conversation:', compressionError);
         // Don't fail the request if compression fails
+      } finally {
+        // Release lock
+        compressionLocks.delete(conversationId);
       }
     }
 
@@ -179,7 +235,7 @@ router.post('/', async (req, res) => {
   } catch (error) {
     logger.error('Chat request failed', error);
     addLog('error', { error: error.message, stack: error.stack });
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to process chat message', error.message);
   }
 });
 
@@ -189,7 +245,7 @@ router.post('/stream', async (req, res) => {
     const { message, conversationId = 'default' } = req.body;
 
     if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
+      return sendError(res, 400, 'Message is required');
     }
 
     logger.info('Received streaming chat message', { conversationId, message });
@@ -202,6 +258,7 @@ router.post('/stream', async (req, res) => {
     }
 
     const conversation = conversations.get(conversationId);
+    touchConversation(conversationId);
 
     // Get or initialize compression metadata
     if (!compressionMetadata.has(conversationId)) {
@@ -301,13 +358,16 @@ router.post('/stream', async (req, res) => {
       }
     }
 
-    // Check if compression is needed
+    // Check if compression is needed (with race condition protection)
     const shouldCompress = compressionService.shouldCompress(result.usage?.total_tokens || 0);
-    // Allow re-compression if: threshold exceeded AND (never compressed OR new messages added since last compression)
     const canCompress = shouldCompress && (!compressionMeta.compressionSummary || conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages);
+    const compressionInProgress = compressionLocks.get(conversationId);
 
-    if (canCompress) {
+    if (canCompress && !compressionInProgress) {
       try {
+        // Set lock to prevent concurrent compression
+        compressionLocks.set(conversationId, true);
+
         const isRecompression = !!compressionMeta.compressionSummary;
         logger.info(`Context size ${result.usage.total_tokens} exceeds threshold, triggering ${isRecompression ? 're-' : ''}compression`);
 
@@ -350,6 +410,9 @@ router.post('/stream', async (req, res) => {
       } catch (compressionError) {
         logger.error('Failed to compress conversation:', compressionError);
         // Don't fail the request if compression fails
+      } finally {
+        // Release lock
+        compressionLocks.delete(conversationId);
       }
     }
 
@@ -389,11 +452,15 @@ router.post('/stream', async (req, res) => {
     logger.error('Streaming chat failed', error);
     addLog('error', { error: error.message, stack: error.stack });
 
-    res.write(`data: ${JSON.stringify({
-      type: 'error',
-      error: error.message
-    })}\n\n`);
-    res.end();
+    try {
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        error: error.message
+      })}\n\n`);
+      res.end();
+    } catch (err) {
+      // Response already closed
+    }
   }
 });
 
@@ -410,30 +477,45 @@ router.get('/conversations', (req, res) => {
 
 // GET /api/chat/conversations/:id - Get conversation history
 router.get('/conversations/:id', (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  if (!conversations.has(id)) {
-    return res.status(404).json({ error: 'Conversation not found' });
+    if (!conversations.has(id)) {
+      return sendError(res, 404, 'Conversation not found');
+    }
+
+    touchConversation(id);
+
+    res.json({
+      id,
+      messages: conversations.get(id)
+    });
+  } catch (error) {
+    logger.error('Failed to get conversation:', error);
+    sendError(res, 500, 'Failed to retrieve conversation');
   }
-
-  res.json({
-    id,
-    messages: conversations.get(id)
-  });
 });
 
 // DELETE /api/chat/conversations/:id - Delete conversation
 router.delete('/conversations/:id', (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  if (!conversations.has(id)) {
-    return res.status(404).json({ error: 'Conversation not found' });
+    if (!conversations.has(id)) {
+      return sendError(res, 404, 'Conversation not found');
+    }
+
+    conversations.delete(id);
+    compressionMetadata.delete(id);
+    conversationActivity.delete(id);
+    compressionLocks.delete(id);
+    logger.info(`Conversation deleted: ${id}`);
+
+    res.json({ message: 'Conversation deleted successfully' });
+  } catch (error) {
+    logger.error('Failed to delete conversation:', error);
+    sendError(res, 500, 'Failed to delete conversation');
   }
-
-  conversations.delete(id);
-  logger.info(`Conversation deleted: ${id}`);
-
-  res.json({ message: 'Conversation deleted successfully' });
 });
 
 // GET /api/chat/logs - Get session logs
@@ -469,7 +551,7 @@ router.get('/history', async (req, res) => {
     res.json({ conversations });
   } catch (error) {
     logger.error('Failed to list conversation history:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to list conversation history');
   }
 });
 
@@ -519,6 +601,7 @@ router.get('/history/:id', async (req, res) => {
 
     // Load into memory for continued chat - this ensures context is preserved
     conversations.set(id, normalizedMessages);
+    touchConversation(id);
 
     // Load compression metadata into memory
     compressionMetadata.set(id, {
@@ -550,7 +633,7 @@ router.get('/history/:id', async (req, res) => {
     });
   } catch (error) {
     logger.error('Failed to load conversation:', error);
-    res.status(404).json({ error: 'Conversation not found' });
+    sendError(res, 404, 'Conversation not found');
   }
 });
 
@@ -559,13 +642,14 @@ router.post('/history/new', async (req, res) => {
   try {
     const conversationId = chatPersistence.generateConversationId();
     conversations.set(conversationId, []);
+    touchConversation(conversationId);
 
     // Don't save to database yet - wait for first message
     logger.info(`New conversation created in memory: ${conversationId}`);
     res.json({ conversationId });
   } catch (error) {
     logger.error('Failed to create new conversation:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to create new conversation');
   }
 });
 
@@ -579,12 +663,15 @@ router.delete('/history/:id', async (req, res) => {
 
     // Delete from memory
     conversations.delete(id);
+    compressionMetadata.delete(id);
+    conversationActivity.delete(id);
+    compressionLocks.delete(id);
 
     logger.info(`Conversation deleted from Zo: ${id}`);
     res.json({ message: 'Conversation deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete conversation:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to delete conversation');
   }
 });
 
@@ -600,21 +687,26 @@ router.post('/reload-persona', async (req, res) => {
         systemMessage: systemMessage.substring(0, 100) + '...' // Preview
       });
     } else {
-      res.status(500).json({ error: 'Failed to reload persona' });
+      sendError(res, 500, 'Failed to reload persona');
     }
   } catch (error) {
     logger.error('Failed to reload persona:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to reload persona');
   }
 });
 
 // GET /api/chat/persona - Get current system message
 router.get('/persona', (req, res) => {
-  const systemMessage = personaManager.getSystemMessage();
-  res.json({
-    systemMessage,
-    personaFile: '/home/workspace/zo_chat_memories/initial_persona.json'
-  });
+  try {
+    const systemMessage = personaManager.getSystemMessage();
+    res.json({
+      systemMessage,
+      personaFile: '/home/workspace/zo_chat_memories/initial_persona.json'
+    });
+  } catch (error) {
+    logger.error('Failed to get persona:', error);
+    sendError(res, 500, 'Failed to retrieve persona');
+  }
 });
 
 // ============================================
@@ -628,7 +720,7 @@ router.get('/memories', (req, res) => {
     res.json({ memories });
   } catch (error) {
     logger.error('Failed to get memories:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to retrieve memories');
   }
 });
 
@@ -638,7 +730,7 @@ router.post('/memories', async (req, res) => {
     const { content, category = 'user', metadata = {} } = req.body;
 
     if (!content) {
-      return res.status(400).json({ error: 'Memory content is required' });
+      return sendError(res, 400, 'Memory content is required');
     }
 
     const result = await memoryManager.addMemory(content, category, metadata);
@@ -646,11 +738,11 @@ router.post('/memories', async (req, res) => {
     if (result.success) {
       res.json({ message: 'Memory added successfully', memory: result.memory });
     } else {
-      res.status(500).json({ error: result.error });
+      sendError(res, 500, result.error || 'Failed to add memory');
     }
   } catch (error) {
     logger.error('Failed to add memory:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to add memory');
   }
 });
 
@@ -663,11 +755,11 @@ router.delete('/memories/:id', async (req, res) => {
     if (result.success) {
       res.json({ message: 'Memory removed successfully' });
     } else {
-      res.status(404).json({ error: result.error });
+      sendError(res, 404, result.error || 'Memory not found');
     }
   } catch (error) {
     logger.error('Failed to remove memory:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to remove memory');
   }
 });
 
@@ -687,11 +779,11 @@ router.put('/memories/:id', async (req, res) => {
     if (result.success) {
       res.json({ message: 'Memory updated successfully', memory: result.memory });
     } else {
-      res.status(404).json({ error: result.error });
+      sendError(res, 404, result.error || 'Memory not found');
     }
   } catch (error) {
     logger.error('Failed to update memory:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to update memory');
   }
 });
 
@@ -706,11 +798,11 @@ router.post('/memories/reload', async (req, res) => {
         count: memories.length
       });
     } else {
-      res.status(500).json({ error: 'Failed to reload memories' });
+      sendError(res, 500, 'Failed to reload memories');
     }
   } catch (error) {
     logger.error('Failed to reload memories:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to reload memories');
   }
 });
 
@@ -721,11 +813,11 @@ router.delete('/memories', async (req, res) => {
     if (result.success) {
       res.json({ message: 'All user memories cleared successfully' });
     } else {
-      res.status(500).json({ error: result.error });
+      sendError(res, 500, result.error || 'Failed to clear memories');
     }
   } catch (error) {
     logger.error('Failed to clear memories:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to clear memories');
   }
 });
 
@@ -749,10 +841,11 @@ router.post('/compress/:id', async (req, res) => {
     const { id } = req.params;
 
     if (!conversations.has(id)) {
-      return res.status(404).json({ error: 'Conversation not found' });
+      return sendError(res, 404, 'Conversation not found');
     }
 
     const conversation = conversations.get(id);
+    touchConversation(id);
 
     // Get or initialize compression metadata
     const compressionMeta = compressionMetadata.get(id) || {
@@ -761,61 +854,70 @@ router.post('/compress/:id', async (req, res) => {
       compressedMessageCount: 0
     };
 
+    // Check if compression is already in progress (race condition protection)
+    if (compressionLocks.get(id)) {
+      return sendError(res, 409, 'Compression already in progress for this conversation');
+    }
+
     // Check if there are new messages to compress since last compression
     const isRecompression = !!compressionMeta.compressionSummary;
     const hasNewMessages = conversation.length > compressionMeta.compressedMessageCount + compressionService.keepRecentMessages;
 
     if (isRecompression && !hasNewMessages) {
-      return res.status(400).json({
-        error: 'No new messages to compress. Add more messages before re-compressing.'
-      });
+      return sendError(res, 400, 'No new messages to compress. Add more messages before re-compressing.');
     }
 
     // Need at least N+1 messages to compress (where N is the number of messages to keep)
     const minMessages = compressionService.keepRecentMessages + 1;
     if (conversation.length < minMessages) {
-      return res.status(400).json({
-        error: `Not enough messages to compress (minimum ${minMessages} required)`
-      });
+      return sendError(res, 400, `Not enough messages to compress (minimum ${minMessages} required)`);
     }
 
     logger.info(`Manual ${isRecompression ? 're-' : ''}compression triggered for conversation ${id}`);
 
-    // Compress messages (keeps recent messages uncompressed based on config)
-    const compressionResult = await compressionService.compressMessages(conversation);
+    try {
+      // Set lock
+      compressionLocks.set(id, true);
 
-    // Update compression metadata
-    compressionMeta.compressionSummary = compressionResult.summary;
-    compressionMeta.compressedAt = new Date().toISOString();
-    compressionMeta.compressedMessageCount = compressionResult.compressedCount;
-    compressionMetadata.set(id, compressionMeta);
+      // Compress messages (keeps recent messages uncompressed based on config)
+      const compressionResult = await compressionService.compressMessages(conversation);
 
-    // Mark compressed messages
-    for (let i = 0; i < compressionResult.compressedCount; i++) {
-      conversation[i].isCompressed = true;
+      // Update compression metadata
+      compressionMeta.compressionSummary = compressionResult.summary;
+      compressionMeta.compressedAt = new Date().toISOString();
+      compressionMeta.compressedMessageCount = compressionResult.compressedCount;
+      compressionMetadata.set(id, compressionMeta);
+
+      // Mark compressed messages
+      for (let i = 0; i < compressionResult.compressedCount; i++) {
+        conversation[i].isCompressed = true;
+      }
+
+      logger.info(`Compressed ${compressionResult.compressedCount} messages for conversation ${id}`);
+
+      // Save to database
+      const metadata = {
+        lastMessageAt: new Date().toISOString(),
+        compressionSummary: compressionMeta.compressionSummary,
+        compressedAt: compressionMeta.compressedAt,
+        compressedMessageCount: compressionMeta.compressedMessageCount
+      };
+
+      await chatPersistence.saveConversation(id, conversation, metadata);
+
+      res.json({
+        message: 'Conversation compressed successfully',
+        compressedCount: compressionResult.compressedCount,
+        summary: compressionResult.summary,
+        compressedAt: compressionMeta.compressedAt
+      });
+    } finally {
+      // Release lock
+      compressionLocks.delete(id);
     }
-
-    logger.info(`Compressed ${compressionResult.compressedCount} messages for conversation ${id}`);
-
-    // Save to database
-    const metadata = {
-      lastMessageAt: new Date().toISOString(),
-      compressionSummary: compressionMeta.compressionSummary,
-      compressedAt: compressionMeta.compressedAt,
-      compressedMessageCount: compressionMeta.compressedMessageCount
-    };
-
-    await chatPersistence.saveConversation(id, conversation, metadata);
-
-    res.json({
-      message: 'Conversation compressed successfully',
-      compressedCount: compressionResult.compressedCount,
-      summary: compressionResult.summary,
-      compressedAt: compressionMeta.compressedAt
-    });
   } catch (error) {
     logger.error('Failed to compress conversation:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to compress conversation');
   }
 });
 
@@ -830,7 +932,7 @@ router.get('/settings', (req, res) => {
     res.json(settings);
   } catch (error) {
     logger.error('Failed to get settings:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to retrieve settings');
   }
 });
 
@@ -860,7 +962,7 @@ router.put('/settings', async (req, res) => {
     const statusCode = error.message.includes('must be') ||
                        error.message.includes('required') ? 400 : 500;
 
-    res.status(statusCode).json({ error: error.message });
+    sendError(res, statusCode, error.message);
   }
 });
 
@@ -877,7 +979,7 @@ router.post('/settings/reload', async (req, res) => {
     res.json(settings);
   } catch (error) {
     logger.error('Failed to reload settings:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to reload settings');
   }
 });
 
@@ -894,7 +996,7 @@ router.post('/settings/reset', async (req, res) => {
     res.json(settings);
   } catch (error) {
     logger.error('Failed to reset settings:', error);
-    res.status(500).json({ error: error.message });
+    sendError(res, 500, 'Failed to reset settings');
   }
 });
 
