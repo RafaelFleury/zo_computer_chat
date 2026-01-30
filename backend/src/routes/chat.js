@@ -32,6 +32,27 @@ function sendError(res, statusCode, message, details = null) {
   res.status(statusCode).json(error);
 }
 
+function logSystemMessages({ conversationId, systemMessage, compressionMeta, context = 'chat' }) {
+  if (systemMessage) {
+    addLog('system_message', {
+      conversationId,
+      message: systemMessage,
+      source: 'base',
+      context
+    });
+  }
+
+  if (compressionMeta?.compressionSummary && compressionMeta.compressedMessageCount > 0) {
+    const summaryMessage = `=== CONVERSATION SUMMARY ===\nThe following is a summary of the first ${compressionMeta.compressedMessageCount} messages in this conversation:\n\n${compressionMeta.compressionSummary}\n\n=== END SUMMARY ===\n\nThe messages below continue from where the summary ends.`;
+    addLog('system_message', {
+      conversationId,
+      message: summaryMessage,
+      source: 'compression_summary',
+      context
+    });
+  }
+}
+
 // POST /api/chat - Send a message and get response
 router.post('/', async (req, res) => {
   try {
@@ -73,6 +94,7 @@ router.post('/', async (req, res) => {
 
     // Build context for LLM (with compression if applicable)
     const systemMessage = personaManager.getSystemMessage();
+    logSystemMessages({ conversationId, systemMessage, compressionMeta, context: 'chat' });
     const conversationForLLM = compressionService.buildCompressedContext(
       conversation,
       compressionMeta.compressionSummary,
@@ -225,6 +247,7 @@ router.post('/stream', async (req, res) => {
 
     // Build context for LLM (with compression if applicable)
     const systemMessage = personaManager.getSystemMessage();
+    logSystemMessages({ conversationId, systemMessage, compressionMeta, context: 'chat' });
     const conversationForLLM = compressionService.buildCompressedContext(
       conversation,
       compressionMeta.compressionSummary,
@@ -482,8 +505,8 @@ router.get('/history', async (req, res) => {
 
 // GET /api/chat/history/:id - Load conversation from Zo
 router.get('/history/:id', async (req, res) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
     const { messages, metadata } = await chatPersistence.loadConversation(id);
 
     // Normalize messages to ensure proper format for both LLM and frontend
@@ -557,6 +580,25 @@ router.get('/history/:id', async (req, res) => {
       compressedMessageCount: metadata.compressedMessageCount || 0
     });
   } catch (error) {
+    if (id === PROACTIVE_CONVERSATION_ID && error.message?.includes('not found')) {
+      conversations.set(id, []);
+      touchConversation(id);
+      compressionMetadata.set(id, {
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+
+      return res.json({
+        id,
+        messages: [],
+        usage: null,
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+    }
+
     logger.error('Failed to load conversation:', error);
     sendError(res, 404, 'Conversation not found');
   }

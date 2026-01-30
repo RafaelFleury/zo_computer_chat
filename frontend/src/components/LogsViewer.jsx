@@ -42,6 +42,7 @@ export default function LogsViewer({ isProcessing = false }) {
 
   const getLogTypeClass = (type) => {
     switch (type) {
+      case 'system_message': return 'log-system';
       case 'user_message': return 'log-user';
       case 'assistant_message': return 'log-assistant';
       case 'tool_call': return 'log-tool';
@@ -57,6 +58,7 @@ export default function LogsViewer({ isProcessing = false }) {
         <div className="logs-controls">
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="filter-select">
             <option value="all">All Logs</option>
+            <option value="system_message">System Messages</option>
             <option value="user_message">User Messages</option>
             <option value="assistant_message">Assistant Messages</option>
             <option value="tool_call">Tool Calls</option>
@@ -118,6 +120,16 @@ export default function LogsViewer({ isProcessing = false }) {
                         <br />
                         <strong className="error-text">Error:</strong> {log.error}
                       </>
+                    )}
+                  </div>
+                )}
+                {log.type === 'system_message' && (
+                  <div>
+                    <strong>Message:</strong> {log.message}
+                    {log.source && (
+                      <div className="log-meta">
+                        <small>Source: {log.source}</small>
+                      </div>
                     )}
                   </div>
                 )}

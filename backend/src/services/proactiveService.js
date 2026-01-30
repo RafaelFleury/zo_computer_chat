@@ -47,18 +47,44 @@ export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
   const triggerMessage = PROACTIVE_TRIGGER_MESSAGE;
 
   logger.info('Running proactive trigger', { conversationId, source });
-  addLog('user_message', { conversationId, message: triggerMessage, proactive: true, source });
 
-  conversation.push({ role: 'user', content: triggerMessage });
-  touchConversation(conversationId);
+  const baseSystemMessage = proactivePersonaManager.getProactiveSystemMessage();
+  addLog('system_message', {
+    conversationId,
+    message: baseSystemMessage,
+    source: 'proactive_base',
+    proactive: true
+  });
 
-  const systemMessage = proactivePersonaManager.getProactiveSystemMessage();
+  if (compressionMeta.compressionSummary && compressionMeta.compressedMessageCount > 0) {
+    const summaryMessage = `=== CONVERSATION SUMMARY ===\nThe following is a summary of the first ${compressionMeta.compressedMessageCount} messages in this conversation:\n\n${compressionMeta.compressionSummary}\n\n=== END SUMMARY ===\n\nThe messages below continue from where the summary ends.`;
+    addLog('system_message', {
+      conversationId,
+      message: summaryMessage,
+      source: 'compression_summary',
+      proactive: true
+    });
+  }
+
+  addLog('system_message', {
+    conversationId,
+    message: triggerMessage,
+    source: 'proactive_trigger',
+    proactive: true,
+    triggerSource: source
+  });
+
+  const systemMessage = `${baseSystemMessage}\n\n${triggerMessage}`;
   const conversationForLLM = compressionService.buildCompressedContext(
     conversation,
     compressionMeta.compressionSummary,
     compressionMeta.compressedMessageCount,
     systemMessage
   );
+  const hasNonSystem = conversationForLLM.some((msg) => msg.role !== 'system');
+  if (!hasNonSystem) {
+    conversationForLLM.push({ role: 'user', content: 'Proceed.' });
+  }
 
   const toolCalls = [];
   const response = await llmClient.chat(conversationForLLM, (toolCallData) => {
@@ -120,7 +146,7 @@ export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
     compressedMessageCount: compressionMeta.compressedMessageCount
   };
 
-  if (conversation.length === 2) {
+  if (conversation.length === 1) {
     metadata.createdAt = now;
   }
 

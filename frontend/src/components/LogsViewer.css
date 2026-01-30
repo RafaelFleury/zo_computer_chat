@@ -147,6 +147,14 @@
   color: #f59e0b;
 }
 
+.log-entry.log-system {
+  border-left: 3px solid var(--accent-purple);
+}
+
+.log-entry.log-system .log-type {
+  color: var(--accent-purple-light);
+}
+
 .log-entry.log-error {
   border-left: 3px solid var(--semantic-error);
 }
@@ -157,6 +165,11 @@
 
 .log-entry.log-default {
   border-left: 3px solid var(--text-tertiary);
+}
+
+.log-meta {
+  margin-top: var(--space-xs);
+  color: var(--text-tertiary);
 }
 
 .log-entry.log-default .log-type {

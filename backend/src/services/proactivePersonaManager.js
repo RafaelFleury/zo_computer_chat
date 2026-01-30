@@ -29,6 +29,31 @@ class ProactivePersonaManager {
     ].join('\n');
   }
 
+  buildPersonaPayload(customPrompt, existingMetadata = null) {
+    const now = new Date().toISOString();
+    const metadata = {
+      createdAt: existingMetadata?.createdAt || now,
+      version: existingMetadata?.version || '1.0',
+      description: existingMetadata?.description || 'Custom proactive prompt appended to the base system message',
+      lastUpdated: now
+    };
+
+    return {
+      customPrompt,
+      metadata
+    };
+  }
+
+  async persistPersona(customPrompt, existingMetadata = null) {
+    const payload = this.buildPersonaPayload(customPrompt, existingMetadata);
+    const content = JSON.stringify(payload, null, 2);
+
+    await zoMCP.callTool('create_or_rewrite_file', {
+      target_file: this.personaFile,
+      content
+    });
+  }
+
   getCustomPrompt() {
     return this.customPrompt || '';
   }
@@ -38,12 +63,7 @@ class ProactivePersonaManager {
     const customPrompt = this.getCustomPrompt().trim();
 
     let message = baseMessage;
-    if (!this.hasPersonaFile) {
-      const defaultPrompt = this.getDefaultPrompt();
-      if (defaultPrompt) {
-        message += `\n\n${defaultPrompt}`;
-      }
-    } else if (customPrompt) {
+    if (customPrompt) {
       message += `\n\n${customPrompt}`;
     }
     return message;
@@ -81,6 +101,11 @@ class ProactivePersonaManager {
 
         this.customPrompt = personaData.customPrompt || '';
         this.hasPersonaFile = true;
+        if (!this.customPrompt.trim()) {
+          this.customPrompt = this.getDefaultPrompt();
+          await this.persistPersona(this.customPrompt, personaData.metadata);
+          logger.info('Backfilled proactive persona with default prompt');
+        }
         logger.info('Loaded proactive persona from proactive_persona.json');
       } catch (readError) {
         logger.info('proactive_persona.json not found, creating default...');
@@ -93,21 +118,11 @@ class ProactivePersonaManager {
   }
 
   async createDefaultPersona() {
-    const defaultPersona = {
-      customPrompt: this.getDefaultPrompt(),
-      metadata: {
-        createdAt: new Date().toISOString(),
-        version: '1.0',
-        description: 'Custom proactive prompt appended to the base system message'
-      }
-    };
+    const defaultPrompt = this.getDefaultPrompt();
+    const defaultPersona = this.buildPersonaPayload(defaultPrompt);
 
     try {
-      const content = JSON.stringify(defaultPersona, null, 2);
-      await zoMCP.callTool('create_or_rewrite_file', {
-        target_file: this.personaFile,
-        content
-      });
+      await this.persistPersona(defaultPersona.customPrompt, defaultPersona.metadata);
       this.customPrompt = defaultPersona.customPrompt;
       this.hasPersonaFile = true;
       logger.info('Created default proactive_persona.json on Zo filesystem');
@@ -146,6 +161,11 @@ class ProactivePersonaManager {
 
       this.customPrompt = personaData.customPrompt || '';
       this.hasPersonaFile = true;
+      if (!this.customPrompt.trim()) {
+        this.customPrompt = this.getDefaultPrompt();
+        await this.persistPersona(this.customPrompt, personaData.metadata);
+        logger.info('Backfilled proactive persona with default prompt');
+      }
       logger.info('Reloaded proactive persona from proactive_persona.json');
       return true;
     } catch (error) {
