@@ -13,6 +13,8 @@ import { llmClient } from './services/llmClient.js';
 import { personaManager } from './services/personaManager.js';
 import { memoryManager } from './services/memoryManager.js';
 import { settingsManager } from './services/settingsManager.js';
+import { proactivePersonaManager } from './services/proactivePersonaManager.js';
+import { proactiveScheduler } from './services/proactiveScheduler.js';
 import chatRouter from './routes/chat.js';
 
 // ES module __dirname equivalent
@@ -132,6 +134,10 @@ async function start() {
     await personaManager.initialize();
     logger.info('Persona Manager initialized');
 
+    // Initialize Proactive Persona Manager (depends on MCP + base persona)
+    await proactivePersonaManager.initialize();
+    logger.info('Proactive Persona Manager initialized');
+
     // Register custom memory management tools
     const memoryTools = [
       {
@@ -233,6 +239,9 @@ async function start() {
     // Initialize LLM client
     llmClient.initialize(process.env.ZAI_API_KEY);
 
+    // Configure proactive scheduler from settings (after LLM is ready)
+    proactiveScheduler.configure(settingsManager.getSettings().proactive);
+
     // Start Express server
     app.listen(PORT, () => {
       logger.info(`Server running on http://localhost:${PORT}`);
@@ -251,6 +260,7 @@ async function start() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
+  proactiveScheduler.stop();
   await zoMCP.disconnect();
   databaseManager.close();
   process.exit(0);
@@ -258,6 +268,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully...');
+  proactiveScheduler.stop();
   await zoMCP.disconnect();
   databaseManager.close();
   process.exit(0);

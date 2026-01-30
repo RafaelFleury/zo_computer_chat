@@ -150,6 +150,27 @@
   gap: var(--space-xs);
 }
 
+.setting-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.setting-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  font-family: var(--font-display);
+  color: var(--text-secondary);
+}
+
+.setting-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 .setting-label {
   font-size: var(--text-sm);
   font-family: var(--font-display);

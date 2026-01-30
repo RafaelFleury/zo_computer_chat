@@ -69,7 +69,8 @@ class ChatPersistence {
             compression_summary = excluded.compression_summary,
             compressed_at = excluded.compressed_at,
             compressed_message_count = excluded.compressed_message_count,
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = CURRENT_TIMESTAMP,
+            deleted_at = NULL
         `);
 
         upsertConversation.run(

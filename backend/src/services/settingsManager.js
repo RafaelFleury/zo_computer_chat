@@ -55,7 +55,7 @@ class SettingsManager {
           }
         }
 
-        this.settings = settingsData;
+        this.settings = this.applyDefaults(settingsData);
         logger.info('Loaded settings from settings.json');
       } catch (readError) {
         // File doesn't exist or is invalid, create default
@@ -74,16 +74,21 @@ class SettingsManager {
     // Try to read from .env first, otherwise use hardcoded defaults
     const threshold = parseInt(process.env.COMPRESSION_THRESHOLD) || 20000;
     const keepRecent = parseInt(process.env.COMPRESSION_KEEP_RECENT) || 2;
+    const now = new Date().toISOString();
 
     return {
       compression: {
         threshold: threshold,
         keepRecentMessages: keepRecent
       },
+      proactive: {
+        enabled: false,
+        intervalMinutes: 15
+      },
       metadata: {
-        createdAt: new Date().toISOString(),
+        createdAt: now,
         version: "1.0",
-        lastUpdated: new Date().toISOString()
+        lastUpdated: now
       }
     };
   }
@@ -107,8 +112,29 @@ class SettingsManager {
     }
   }
 
+  applyDefaults(settings) {
+    const defaults = this.getDefaultSettings();
+    return {
+      ...defaults,
+      ...settings,
+      compression: {
+        ...defaults.compression,
+        ...(settings?.compression || {})
+      },
+      proactive: {
+        ...defaults.proactive,
+        ...(settings?.proactive || {})
+      },
+      metadata: {
+        ...defaults.metadata,
+        ...(settings?.metadata || {})
+      }
+    };
+  }
+
   getSettings() {
-    return this.settings || this.getDefaultSettings();
+    const settings = this.settings || this.getDefaultSettings();
+    return this.applyDefaults(settings);
   }
 
   getCompressionSettings() {
@@ -137,14 +163,39 @@ class SettingsManager {
     return true;
   }
 
+  validateProactiveSettings(proactive) {
+    if (!proactive) {
+      throw new Error('Proactive settings are required');
+    }
+
+    if (typeof proactive.enabled !== 'boolean') {
+      throw new Error('Proactive enabled must be a boolean');
+    }
+
+    if (typeof proactive.intervalMinutes !== 'number' ||
+        proactive.intervalMinutes < 1 ||
+        proactive.intervalMinutes > 120) {
+      throw new Error('Proactive intervalMinutes must be a number between 1 and 120');
+    }
+
+    return true;
+  }
+
   async updateSettings(updates) {
     try {
       const currentSettings = this.getSettings();
 
-      // Deep merge updates with current settings
       const newSettings = {
         ...currentSettings,
         ...updates,
+        compression: {
+          ...currentSettings.compression,
+          ...(updates.compression || {})
+        },
+        proactive: {
+          ...currentSettings.proactive,
+          ...(updates.proactive || {})
+        },
         metadata: {
           ...currentSettings.metadata,
           lastUpdated: new Date().toISOString()
@@ -154,6 +205,10 @@ class SettingsManager {
       // Validate compression settings if they're being updated
       if (updates.compression) {
         this.validateCompressionSettings(newSettings.compression);
+      }
+
+      if (updates.proactive) {
+        this.validateProactiveSettings(newSettings.proactive);
       }
 
       // Save to file
@@ -215,9 +270,9 @@ class SettingsManager {
         }
       }
 
-      this.settings = settingsData;
+      this.settings = this.applyDefaults(settingsData);
       logger.info('Reloaded settings from settings.json');
-      return settingsData;
+      return this.settings;
     } catch (error) {
       logger.error('Failed to reload settings:', error);
       throw error;

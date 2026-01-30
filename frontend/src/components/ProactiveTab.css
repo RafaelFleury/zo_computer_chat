@@ -1,0 +1,117 @@
+.proactive-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+}
+
+.proactive-header {
+  padding: var(--space-md) var(--space-lg);
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  min-height: 56px;
+}
+
+.proactive-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.proactive-title {
+  font-size: var(--text-base);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.proactive-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.proactive-meta-item {
+  font-family: var(--font-display);
+}
+
+.proactive-indicator {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.proactive-indicator.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(45, 108, 223, 0.12);
+}
+
+.proactive-indicator.off {
+  color: var(--text-secondary);
+}
+
+.proactive-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.proactive-button {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.proactive-button:hover:not(:disabled) {
+  background: rgba(45, 108, 223, 0.1);
+  color: var(--accent);
+}
+
+.proactive-button.secondary {
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.proactive-button.secondary:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.proactive-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.proactive-chat {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .proactive-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -65,6 +65,38 @@ function SettingsTab() {
     });
   };
 
+  const handleProactiveChange = (field, value) => {
+    if (!localSettings?.proactive) return;
+
+    if (field === "intervalMinutes") {
+      const numValue = parseInt(value, 10);
+      if (Number.isNaN(numValue) || numValue < 1 || numValue > 120) {
+        setError("Proactive interval must be between 1 and 120 minutes");
+        return;
+      }
+      setError(null);
+      setLocalSettings({
+        ...localSettings,
+        proactive: {
+          ...localSettings.proactive,
+          intervalMinutes: numValue,
+        },
+      });
+      return;
+    }
+
+    if (field === "enabled") {
+      setError(null);
+      setLocalSettings({
+        ...localSettings,
+        proactive: {
+          ...localSettings.proactive,
+          enabled: Boolean(value),
+        },
+      });
+    }
+  };
+
   // Handle save
   const handleSave = async () => {
     setIsSaving(true);
@@ -74,6 +106,7 @@ function SettingsTab() {
     try {
       const updatedSettings = await api.updateSettings({
         compression: localSettings.compression,
+        proactive: localSettings.proactive,
       });
 
       setCloudSettings(updatedSettings);
@@ -222,6 +255,61 @@ function SettingsTab() {
               }
               className="setting-input"
             />
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h2>Proactive Mode</h2>
+          <p className="settings-section-description">
+            Configure the autonomous proactive assistant triggers and prompt settings.
+          </p>
+
+          <div className="setting-item">
+            <label className="setting-toggle">
+              <span className="setting-label">Enable Proactive Mode</span>
+              <span className="setting-description">
+                Allow scheduled proactive runs to occur in the Proactive tab.
+              </span>
+            </label>
+            <label className="setting-checkbox">
+              <input
+                type="checkbox"
+                checked={localSettings.proactive.enabled}
+                onChange={(e) =>
+                  handleProactiveChange("enabled", e.target.checked)
+                }
+              />
+              <span>Enabled</span>
+            </label>
+          </div>
+
+          <div className="setting-item">
+            <label>
+              <span className="setting-label">Trigger Interval (minutes)</span>
+              <span className="setting-description">
+                How often the backend triggers proactive runs. Range: 1-120 minutes.
+              </span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="120"
+              step="1"
+              value={localSettings.proactive.intervalMinutes}
+              onChange={(e) =>
+                handleProactiveChange("intervalMinutes", e.target.value)
+              }
+              className="setting-input"
+            />
+          </div>
+
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Proactive Prompt File</span>
+              <code className="setting-value">
+                /home/workspace/zo_chat_memories/proactive_persona.json
+              </code>
+            </div>
           </div>
         </section>
 

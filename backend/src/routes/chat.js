@@ -5,58 +5,23 @@ import { personaManager } from '../services/personaManager.js';
 import { memoryManager } from '../services/memoryManager.js';
 import { compressionService } from '../services/compressionService.js';
 import { settingsManager } from '../services/settingsManager.js';
+import { proactiveScheduler } from '../services/proactiveScheduler.js';
+import { PROACTIVE_CONVERSATION_ID } from '../services/proactiveService.js';
+import {
+  conversations,
+  compressionMetadata,
+  conversationActivity,
+  compressionLocks,
+  touchConversation,
+  ensureCompressionMetadata,
+  startConversationCleanup
+} from '../services/conversationStore.js';
+import { addLog, getLogs, clearLogs } from '../services/logStore.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-// Store conversation history in memory (use a database in production)
-const conversations = new Map();
-
-// Store compression metadata for each conversation
-const compressionMetadata = new Map();
-
-// Store last activity timestamp for each conversation (for cleanup)
-const conversationActivity = new Map();
-
-// Track compression in progress for each conversation (prevent race conditions)
-const compressionLocks = new Map();
-
-// Store logs for the current session
-const sessionLogs = [];
-
-// Memory cleanup configuration
-const CONVERSATION_TTL = parseInt(process.env.CONVERSATION_TTL_HOURS || '24') * 60 * 60 * 1000; // Default 24 hours
-const CLEANUP_INTERVAL = 60 * 60 * 1000; // Run cleanup every 1 hour
-
-// Cleanup old conversations from memory
-function cleanupOldConversations() {
-  const now = Date.now();
-  let cleanedCount = 0;
-
-  for (const [id, lastActivity] of conversationActivity.entries()) {
-    if (now - lastActivity > CONVERSATION_TTL) {
-      conversations.delete(id);
-      compressionMetadata.delete(id);
-      conversationActivity.delete(id);
-      compressionLocks.delete(id);
-      cleanedCount++;
-      logger.info(`Cleaned up inactive conversation from memory: ${id}`);
-    }
-  }
-
-  if (cleanedCount > 0) {
-    logger.info(`Memory cleanup: removed ${cleanedCount} inactive conversations`);
-  }
-}
-
-// Start periodic cleanup
-setInterval(cleanupOldConversations, CLEANUP_INTERVAL);
-logger.info(`Memory cleanup scheduled: conversations inactive for ${CONVERSATION_TTL / (60 * 60 * 1000)} hours will be removed`);
-
-// Update conversation activity timestamp
-function touchConversation(conversationId) {
-  conversationActivity.set(conversationId, Date.now());
-}
+startConversationCleanup();
 
 // Standard error response helper
 function sendError(res, statusCode, message, details = null) {
@@ -65,18 +30,6 @@ function sendError(res, statusCode, message, details = null) {
     error.details = details;
   }
   res.status(statusCode).json(error);
-}
-
-// Add log entry
-function addLog(type, data) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    type,
-    ...data
-  };
-  sessionLogs.push(logEntry);
-  logger.debug('Log entry added', logEntry);
-  return logEntry;
 }
 
 // POST /api/chat - Send a message and get response
@@ -101,14 +54,7 @@ router.post('/', async (req, res) => {
     touchConversation(conversationId);
 
     // Get or initialize compression metadata
-    if (!compressionMetadata.has(conversationId)) {
-      compressionMetadata.set(conversationId, {
-        compressionSummary: null,
-        compressedAt: null,
-        compressedMessageCount: 0
-      });
-    }
-    const compressionMeta = compressionMetadata.get(conversationId);
+    const compressionMeta = ensureCompressionMetadata(conversationId);
 
     // Log conversation state for debugging
     logger.info(`Sending message to conversation ${conversationId}`, {
@@ -260,15 +206,7 @@ router.post('/stream', async (req, res) => {
     const conversation = conversations.get(conversationId);
     touchConversation(conversationId);
 
-    // Get or initialize compression metadata
-    if (!compressionMetadata.has(conversationId)) {
-      compressionMetadata.set(conversationId, {
-        compressionSummary: null,
-        compressedAt: null,
-        compressedMessageCount: 0
-      });
-    }
-    const compressionMeta = compressionMetadata.get(conversationId);
+    const compressionMeta = ensureCompressionMetadata(conversationId);
 
     // Log conversation state for debugging
     logger.info(`Streaming message to conversation ${conversationId}`, {
@@ -521,26 +459,13 @@ router.delete('/conversations/:id', (req, res) => {
 // GET /api/chat/logs - Get session logs
 router.get('/logs', (req, res) => {
   const { type, limit = 100 } = req.query;
-
-  let logs = sessionLogs;
-
-  // Filter by type if specified
-  if (type) {
-    logs = logs.filter(log => log.type === type);
-  }
-
-  // Limit results
-  logs = logs.slice(-parseInt(limit));
-
+  const logs = getLogs({ type, limit });
   res.json({ logs });
 });
 
 // DELETE /api/chat/logs - Clear session logs
 router.delete('/logs', (req, res) => {
-  const count = sessionLogs.length;
-  sessionLogs.length = 0;
-  logger.info('Session logs cleared');
-
+  const count = clearLogs();
   res.json({ message: `Cleared ${count} log entries` });
 });
 
@@ -848,11 +773,7 @@ router.post('/compress/:id', async (req, res) => {
     touchConversation(id);
 
     // Get or initialize compression metadata
-    const compressionMeta = compressionMetadata.get(id) || {
-      compressionSummary: null,
-      compressedAt: null,
-      compressedMessageCount: 0
-    };
+    const compressionMeta = ensureCompressionMetadata(id);
 
     // Check if compression is already in progress (race condition protection)
     if (compressionLocks.get(id)) {
@@ -945,12 +866,12 @@ router.put('/settings', async (req, res) => {
     if (updates.compression) {
       settingsManager.validateCompressionSettings(updates.compression);
     }
-
     // Update settings
     const updatedSettings = await settingsManager.updateSettings(updates);
 
     // Reload compression service with new settings
     compressionService.reloadConfig();
+    proactiveScheduler.configure(updatedSettings.proactive);
 
     logger.info('Settings updated successfully');
 
@@ -973,6 +894,7 @@ router.post('/settings/reload', async (req, res) => {
 
     // Reload compression service with reloaded settings
     compressionService.reloadConfig();
+    proactiveScheduler.configure(settings.proactive);
 
     logger.info('Settings reloaded successfully');
 
@@ -990,6 +912,7 @@ router.post('/settings/reset', async (req, res) => {
 
     // Reload compression service with reset settings
     compressionService.reloadConfig();
+    proactiveScheduler.configure(settings.proactive);
 
     logger.info('Settings reset to defaults');
 
@@ -997,6 +920,40 @@ router.post('/settings/reset', async (req, res) => {
   } catch (error) {
     logger.error('Failed to reset settings:', error);
     sendError(res, 500, 'Failed to reset settings');
+  }
+});
+
+// ============================================
+// Proactive Mode Endpoints
+// ============================================
+
+// GET /api/chat/proactive/status - Get proactive scheduler status
+router.get('/proactive/status', (req, res) => {
+  try {
+    const status = proactiveScheduler.getStatus();
+    res.json({
+      ...status,
+      conversationId: PROACTIVE_CONVERSATION_ID
+    });
+  } catch (error) {
+    logger.error('Failed to get proactive status:', error);
+    sendError(res, 500, 'Failed to retrieve proactive status');
+  }
+});
+
+// POST /api/chat/proactive/trigger - Manual proactive trigger (does not reset timer)
+router.post('/proactive/trigger', async (req, res) => {
+  try {
+    const result = await proactiveScheduler.triggerManual();
+    res.json({
+      message: 'Proactive trigger completed',
+      result,
+      status: proactiveScheduler.getStatus()
+    });
+  } catch (error) {
+    logger.error('Failed to run manual proactive trigger:', error);
+    const statusCode = error.statusCode || 500;
+    sendError(res, statusCode, error.message || 'Failed to trigger proactive mode');
   }
 });
 

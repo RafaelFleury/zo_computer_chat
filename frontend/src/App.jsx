@@ -1,13 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import ChatInterface from "./components/ChatInterface";
+import ProactiveTab from "./components/ProactiveTab";
 import LogsViewer from "./components/LogsViewer";
 import ChatHistory from "./components/ChatHistory";
 import FaceTimeView from "./components/FaceTimeView";
 import MemoriesTab from "./components/MemoriesTab";
 import SettingsTab from "./components/SettingsTab";
-import Toast from "./components/Toast";
-import { API_URL } from "./services/api";
+import Toast, { showToast } from "./components/Toast";
+import { API_URL, api } from "./services/api";
 import "./App.css";
+
+const PROACTIVE_CONVERSATION_ID = "proactive";
 
 function App() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -28,6 +31,35 @@ function App() {
   const [isFaceFullscreen, setIsFaceFullscreen] = useState(false);
   const chatHistoryRef = useRef(null);
   const chatInterfaceRef = useRef(null);
+  const proactiveChatInterfaceRef = useRef(null);
+
+  const [proactiveLoadedMessages, setProactiveLoadedMessages] = useState([]);
+  const [proactiveDisplayMessages, setProactiveDisplayMessages] = useState([]);
+  const [proactiveUsage, setProactiveUsage] = useState(null);
+  const [proactiveCompressionInfo, setProactiveCompressionInfo] = useState({
+    compressionSummary: null,
+    compressedAt: null,
+    compressedMessageCount: 0
+  });
+  const [isProactiveProcessing, setIsProactiveProcessing] = useState(false);
+  const [proactiveStreamingState, setProactiveStreamingState] = useState({
+    status: "idle",
+    lastUpdate: Date.now(),
+  });
+  const [proactiveToolCalls, setProactiveToolCalls] = useState([]);
+  const [proactiveStatus, setProactiveStatus] = useState({
+    enabled: false,
+    intervalMinutes: 15,
+    lastTriggered: null,
+    nextTriggerAt: null,
+    isRunning: false,
+    isTriggering: false,
+    conversationId: PROACTIVE_CONVERSATION_ID
+  });
+  const [isManualTriggering, setIsManualTriggering] = useState(false);
+  const [isClearingProactive, setIsClearingProactive] = useState(false);
+  const [activeConversationMode, setActiveConversationMode] = useState("chat");
+  const lastProactiveTriggerRef = useRef(null);
 
   // Streaming state for FaceTimeView
   const [streamingState, setStreamingState] = useState({
@@ -54,6 +86,92 @@ function App() {
   const refreshChatHistory = () => {
     chatHistoryRef.current?.refresh();
   };
+
+  const loadProactiveConversation = useCallback(async () => {
+    try {
+      const data = await api.getConversationHistory(PROACTIVE_CONVERSATION_ID);
+      const compressionData = {
+        compressionSummary: data.compressionSummary || null,
+        compressedAt: data.compressedAt || null,
+        compressedMessageCount: data.compressedMessageCount || 0
+      };
+      setProactiveLoadedMessages(data.messages || []);
+      setProactiveDisplayMessages(data.messages || []);
+      setProactiveUsage(data.usage || null);
+      setProactiveCompressionInfo(compressionData);
+    } catch (error) {
+      console.warn("Failed to load proactive conversation:", error.message);
+      setProactiveLoadedMessages([]);
+      setProactiveDisplayMessages([]);
+      setProactiveUsage(null);
+      setProactiveCompressionInfo({
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+    }
+  }, []);
+
+  const fetchProactiveStatus = useCallback(async () => {
+    try {
+      const status = await api.getProactiveStatus();
+      setProactiveStatus(status);
+
+      if (status?.lastTriggered && status.lastTriggered !== lastProactiveTriggerRef.current) {
+        lastProactiveTriggerRef.current = status.lastTriggered;
+        await loadProactiveConversation();
+      }
+    } catch (error) {
+      console.warn("Failed to fetch proactive status:", error.message);
+    }
+  }, [loadProactiveConversation]);
+
+  const handleManualProactiveTrigger = useCallback(async () => {
+    if (isManualTriggering) return;
+    setIsManualTriggering(true);
+    try {
+      await api.triggerProactive();
+      showToast("Proactive trigger completed", "success");
+      await loadProactiveConversation();
+      await fetchProactiveStatus();
+    } catch (error) {
+      showToast(error.message || "Failed to trigger proactive mode", "error");
+    } finally {
+      setIsManualTriggering(false);
+    }
+  }, [fetchProactiveStatus, isManualTriggering, loadProactiveConversation]);
+
+  const handleClearProactive = useCallback(async () => {
+    if (isClearingProactive) return;
+    setIsClearingProactive(true);
+    try {
+      await api.deleteConversationHistory(PROACTIVE_CONVERSATION_ID);
+      lastProactiveTriggerRef.current = null;
+      setProactiveLoadedMessages([]);
+      setProactiveDisplayMessages([]);
+      setProactiveUsage(null);
+      setProactiveCompressionInfo({
+        compressionSummary: null,
+        compressedAt: null,
+        compressedMessageCount: 0
+      });
+      showToast("Proactive chat cleared", "success");
+    } catch (error) {
+      showToast(error.message || "Failed to clear proactive chat", "error");
+    } finally {
+      setIsClearingProactive(false);
+    }
+  }, [isClearingProactive]);
+
+  useEffect(() => {
+    loadProactiveConversation();
+  }, [loadProactiveConversation]);
+
+  useEffect(() => {
+    fetchProactiveStatus();
+    const interval = setInterval(fetchProactiveStatus, 5000);
+    return () => clearInterval(interval);
+  }, [fetchProactiveStatus]);
 
   // Create new conversation
   const handleNewConversation = async () => {
@@ -108,20 +226,55 @@ function App() {
     setCurrentToolCalls(toolCalls);
   };
 
+  const handleProactiveStreamingStateChange = (status) => {
+    setProactiveStreamingState({
+      status,
+      lastUpdate: Date.now(),
+    });
+  };
+
+  const handleProactiveToolCallsUpdate = (toolCalls) => {
+    setProactiveToolCalls(toolCalls);
+  };
+
   // Handle sending message from FaceTimeView (delegates to ChatInterface)
   const handleSendMessage = useCallback((text) => {
+    if (activeConversationMode === "proactive") {
+      proactiveChatInterfaceRef.current?.sendMessage(text);
+      return;
+    }
     chatInterfaceRef.current?.sendMessage(text);
-  }, []);
+  }, [activeConversationMode]);
 
   // Handle messages update from ChatInterface (for FaceTimeView sync)
   const handleMessagesUpdate = useCallback((newMessages) => {
     setDisplayMessages(newMessages);
   }, []);
 
+  const handleProactiveMessagesUpdate = useCallback((newMessages) => {
+    setProactiveDisplayMessages(newMessages);
+  }, []);
+
   // Handle fullscreen change from FaceTimeView
   const handleFaceFullscreenChange = useCallback((isFullscreen) => {
     setIsFaceFullscreen(isFullscreen);
   }, []);
+
+  const activeMessages = activeConversationMode === "proactive"
+    ? proactiveDisplayMessages
+    : displayMessages;
+  const activeStreamingState = activeConversationMode === "proactive"
+    ? proactiveStreamingState
+    : streamingState;
+  const activeToolCalls = activeConversationMode === "proactive"
+    ? proactiveToolCalls
+    : currentToolCalls;
+  const activeConversationId = activeConversationMode === "proactive"
+    ? PROACTIVE_CONVERSATION_ID
+    : conversationId;
+  const activeProcessing = activeConversationMode === "proactive"
+    ? isProactiveProcessing
+    : isProcessing;
 
   return (
     <div className={`app ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${isFaceFullscreen ? "face-fullscreen" : ""}`}>
@@ -140,9 +293,21 @@ function App() {
       <div className="tabs">
         <button
           className={`tab ${activeTab === "chat" ? "active" : ""}`}
-          onClick={() => setActiveTab("chat")}
+          onClick={() => {
+            setActiveTab("chat");
+            setActiveConversationMode("chat");
+          }}
         >
           Chat
+        </button>
+        <button
+          className={`tab ${activeTab === "proactive" ? "active" : ""}`}
+          onClick={() => {
+            setActiveTab("proactive");
+            setActiveConversationMode("proactive");
+          }}
+        >
+          Proactive
         </button>
         <button
           className={`tab ${activeTab === "face" ? "active" : ""}`}
@@ -190,22 +355,45 @@ function App() {
           />
         </div>
         <div
+          className={activeTab === "proactive" ? "tab-panel active" : "tab-panel"}
+        >
+          <ProactiveTab
+            status={proactiveStatus}
+            onManualTrigger={handleManualProactiveTrigger}
+            isManualTriggering={isManualTriggering}
+            onClear={handleClearProactive}
+            isClearing={isClearingProactive}
+            chatRef={proactiveChatInterfaceRef}
+            chatProps={{
+              conversationId: PROACTIVE_CONVERSATION_ID,
+              initialMessages: proactiveLoadedMessages,
+              initialUsage: proactiveUsage,
+              initialCompressionInfo: proactiveCompressionInfo,
+              onMessageSent: refreshChatHistory,
+              onProcessingChange: setIsProactiveProcessing,
+              onStreamingStateChange: handleProactiveStreamingStateChange,
+              onToolCallsUpdate: handleProactiveToolCallsUpdate,
+              onMessagesUpdate: handleProactiveMessagesUpdate,
+            }}
+          />
+        </div>
+        <div
           className={activeTab === "face" ? "tab-panel active" : "tab-panel"}
         >
           <FaceTimeView
-            streamingState={streamingState}
-            currentToolCalls={currentToolCalls}
-            conversationId={conversationId}
-            messages={displayMessages}
+            streamingState={activeStreamingState}
+            currentToolCalls={activeToolCalls}
+            conversationId={activeConversationId}
+            messages={activeMessages}
             onSendMessage={handleSendMessage}
-            isLoading={isProcessing}
+            isLoading={activeProcessing}
             onFullscreenChange={handleFaceFullscreenChange}
           />
         </div>
         <div
           className={activeTab === "logs" ? "tab-panel active" : "tab-panel"}
         >
-          <LogsViewer isProcessing={isProcessing} />
+          <LogsViewer isProcessing={isProcessing || isProactiveProcessing || proactiveStatus.isTriggering} />
         </div>
         <div
           className={activeTab === "memories" ? "tab-panel active" : "tab-panel"}

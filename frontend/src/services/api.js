@@ -93,6 +93,26 @@ export const api = {
     return response.json();
   },
 
+  async getConversationHistory(id) {
+    const response = await fetch(`${API_URL}/api/chat/history/${id}`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch conversation history');
+    }
+    return response.json();
+  },
+
+  async deleteConversationHistory(id) {
+    const response = await fetch(`${API_URL}/api/chat/history/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete conversation history');
+    }
+    return response.json();
+  },
+
   async deleteConversation(id) {
     const response = await fetch(`${API_URL}/api/chat/conversations/${id}`, {
       method: 'DELETE',
@@ -200,6 +220,23 @@ export const api = {
       method: 'POST',
     });
     if (!response.ok) throw new Error('Failed to reset settings');
+    return response.json();
+  },
+
+  async getProactiveStatus() {
+    const response = await fetch(`${API_URL}/api/chat/proactive/status`);
+    if (!response.ok) throw new Error('Failed to fetch proactive status');
+    return response.json();
+  },
+
+  async triggerProactive() {
+    const response = await fetch(`${API_URL}/api/chat/proactive/trigger`, {
+      method: 'POST'
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to trigger proactive mode');
+    }
     return response.json();
   },
 };
