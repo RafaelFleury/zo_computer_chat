@@ -20,8 +20,16 @@ export const api = {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to send message');
+      let errorMessage = 'Failed to send message';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (err) {
+        // Ignore JSON parsing errors
+      }
+      const requestError = new Error(errorMessage);
+      requestError.status = response.status;
+      throw requestError;
     }
 
     return response.json();
@@ -39,7 +47,16 @@ export const api = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to start stream');
+      let errorMessage = 'Failed to start stream';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (err) {
+        // Ignore JSON parsing errors
+      }
+      const requestError = new Error(errorMessage);
+      requestError.status = response.status;
+      throw requestError;
     }
 
     const reader = response.body.getReader();

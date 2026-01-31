@@ -20,9 +20,9 @@
 # Proactive
 [ ] - Review the sub header in the proactive tab to be more consisten with the site theme
 [ ] - Fix enabled button position on the settings
-[ ] - Put proactive mode off by default
 [ ] - Sync it with the face
 [ ] - add the loading with 3 dots like in normal chat interface.
+[ ] - See if proactive mode is off by default
 
 
 

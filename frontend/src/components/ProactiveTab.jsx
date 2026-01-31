@@ -16,12 +16,13 @@ export default function ProactiveTab({
   isClearing,
   chatProps,
   chatRef,
+  isGlobalBusy = false,
 }) {
   const enabled = status?.enabled ?? false;
   const intervalMinutes = status?.intervalMinutes ?? 15;
   const nextTrigger = enabled && status?.isRunning ? formatTimestamp(status?.nextTriggerAt) : "Disabled";
   const lastTriggered = formatTimestamp(status?.lastTriggered);
-  const triggerDisabled = Boolean(isManualTriggering || status?.isTriggering);
+  const triggerDisabled = Boolean(isManualTriggering || status?.isTriggering || isGlobalBusy);
   const clearDisabled = Boolean(isClearing || status?.isTriggering || isManualTriggering);
 
   return (

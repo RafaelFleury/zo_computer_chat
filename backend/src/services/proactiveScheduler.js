@@ -1,5 +1,6 @@
 import { logger } from '../utils/logger.js';
-import { runProactiveTrigger } from './proactiveService.js';
+import { runProactiveTrigger, PROACTIVE_CONVERSATION_ID } from './proactiveService.js';
+import { activeChatManager } from './activeChatManager.js';
 
 class ProactiveScheduler {
   constructor() {
@@ -48,6 +49,18 @@ class ProactiveScheduler {
         return;
       }
 
+      const lock = activeChatManager.tryAcquire({
+        source: 'proactive',
+        conversationId: PROACTIVE_CONVERSATION_ID,
+        metadata: { triggerSource: 'scheduled' }
+      });
+
+      if (!lock.acquired) {
+        logger.warn('Proactive trigger skipped (another chat active)', lock.active);
+        this.nextTriggerAt = new Date(Date.now() + intervalMs).toISOString();
+        return;
+      }
+
       this.isTriggering = true;
       try {
         await runProactiveTrigger({ source: 'scheduled' });
@@ -57,6 +70,7 @@ class ProactiveScheduler {
         logger.error('Scheduled proactive trigger failed:', error);
       } finally {
         this.isTriggering = false;
+        activeChatManager.release(lock.token);
       }
     }, intervalMs);
 
@@ -80,6 +94,18 @@ class ProactiveScheduler {
       throw error;
     }
 
+    const lock = activeChatManager.tryAcquire({
+      source: 'proactive',
+      conversationId: PROACTIVE_CONVERSATION_ID,
+      metadata: { triggerSource: 'manual' }
+    });
+
+    if (!lock.acquired) {
+      const error = new Error('Another chat is currently active. Please wait.');
+      error.statusCode = 409;
+      throw error;
+    }
+
     this.isTriggering = true;
     try {
       const result = await runProactiveTrigger({ source: 'manual' });
@@ -87,6 +113,7 @@ class ProactiveScheduler {
       return result;
     } finally {
       this.isTriggering = false;
+      activeChatManager.release(lock.token);
     }
   }
 

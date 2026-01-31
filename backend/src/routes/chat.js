@@ -7,6 +7,7 @@ import { compressionService } from '../services/compressionService.js';
 import { settingsManager } from '../services/settingsManager.js';
 import { proactiveScheduler } from '../services/proactiveScheduler.js';
 import { PROACTIVE_CONVERSATION_ID } from '../services/proactiveService.js';
+import { activeChatManager } from '../services/activeChatManager.js';
 import {
   conversations,
   compressionMetadata,
@@ -55,11 +56,22 @@ function logSystemMessages({ conversationId, systemMessage, compressionMeta, con
 
 // POST /api/chat - Send a message and get response
 router.post('/', async (req, res) => {
+  let lock = null;
   try {
     const { message, conversationId = 'default' } = req.body;
 
     if (!message) {
       return sendError(res, 400, 'Message is required');
+    }
+
+    lock = activeChatManager.tryAcquire({
+      source: 'chat',
+      conversationId
+    });
+
+    if (!lock.acquired) {
+      logger.warn('Chat request blocked (another chat active)', lock.active);
+      return sendError(res, 409, 'Another chat is currently active. Please wait.');
     }
 
     logger.info('Received chat message', { conversationId, message });
@@ -204,16 +216,31 @@ router.post('/', async (req, res) => {
     logger.error('Chat request failed', error);
     addLog('error', { error: error.message, stack: error.stack });
     sendError(res, 500, 'Failed to process chat message', error.message);
+  } finally {
+    if (lock?.acquired) {
+      activeChatManager.release(lock.token);
+    }
   }
 });
 
 // POST /api/chat/stream - Stream chat response
 router.post('/stream', async (req, res) => {
+  let lock = null;
   try {
     const { message, conversationId = 'default' } = req.body;
 
     if (!message) {
       return sendError(res, 400, 'Message is required');
+    }
+
+    lock = activeChatManager.tryAcquire({
+      source: 'chat',
+      conversationId
+    });
+
+    if (!lock.acquired) {
+      logger.warn('Streaming chat blocked (another chat active)', lock.active);
+      return sendError(res, 409, 'Another chat is currently active. Please wait.');
     }
 
     logger.info('Received streaming chat message', { conversationId, message });
@@ -421,6 +448,10 @@ router.post('/stream', async (req, res) => {
       res.end();
     } catch (err) {
       // Response already closed
+    }
+  } finally {
+    if (lock?.acquired) {
+      activeChatManager.release(lock.token);
     }
   }
 });

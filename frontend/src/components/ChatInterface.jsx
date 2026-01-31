@@ -49,6 +49,8 @@ const ChatInterface = forwardRef(function ChatInterface(
     onStreamingStateChange,
     onToolCallsUpdate,
     onMessagesUpdate,
+    externalDisabled = false,
+    externalDisabledMessage = "Assistant is busy. Please wait for the current response to finish.",
   },
   ref,
 ) {
@@ -81,7 +83,23 @@ const ChatInterface = forwardRef(function ChatInterface(
     ref,
     () => ({
       sendMessage: (text) => {
-        if (text && !loading) {
+        if (!text) {
+          return;
+        }
+
+        if (externalDisabled) {
+          showToast(externalDisabledMessage, 'warning');
+          return;
+        }
+
+        if (loading || compressing) {
+          if (compressing) {
+            showToast('Please wait for compression to complete', 'warning');
+          }
+          return;
+        }
+
+        if (text) {
           setInput(text);
           // Use setTimeout to ensure state is updated before submitting
           setTimeout(() => {
@@ -90,7 +108,7 @@ const ChatInterface = forwardRef(function ChatInterface(
         }
       },
     }),
-    [loading],
+    [loading, compressing, externalDisabled, externalDisabledMessage],
   );
 
   const scrollToBottom = () => {
@@ -233,6 +251,10 @@ const ChatInterface = forwardRef(function ChatInterface(
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (externalDisabled) {
+      showToast(externalDisabledMessage, 'warning');
+      return;
+    }
     if (!input.trim() || loading || compressing) {
       if (compressing) {
         showToast('Please wait for compression to complete', 'warning');
@@ -587,7 +609,7 @@ const ChatInterface = forwardRef(function ChatInterface(
             }
           }}
           placeholder={compressing ? "Compressing conversation..." : "Type a message..."}
-          disabled={loading || compressing}
+          disabled={loading || compressing || externalDisabled}
           className="message-input"
           rows="1"
         />
@@ -603,7 +625,7 @@ const ChatInterface = forwardRef(function ChatInterface(
         ) : (
           <button
             type="submit"
-            disabled={!input.trim() || compressing}
+            disabled={!input.trim() || compressing || externalDisabled}
             className="send-button"
             title={compressing ? "Compressing conversation..." : "Send message"}
           >

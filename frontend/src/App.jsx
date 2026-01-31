@@ -58,7 +58,7 @@ function App() {
   });
   const [isManualTriggering, setIsManualTriggering] = useState(false);
   const [isClearingProactive, setIsClearingProactive] = useState(false);
-  const [activeConversationMode, setActiveConversationMode] = useState("chat");
+  const [preferredConversationMode, setPreferredConversationMode] = useState("chat");
   const lastProactiveTriggerRef = useRef(null);
 
   // Streaming state for FaceTimeView
@@ -173,6 +173,23 @@ function App() {
     return () => clearInterval(interval);
   }, [fetchProactiveStatus]);
 
+  useEffect(() => {
+    if (proactiveStatus.isTriggering && !isProactiveProcessing) {
+      setProactiveStreamingState({
+        status: "thinking",
+        lastUpdate: Date.now(),
+      });
+      return;
+    }
+
+    if (!proactiveStatus.isTriggering && !isProactiveProcessing && proactiveStreamingState.status === "thinking") {
+      setProactiveStreamingState({
+        status: "idle",
+        lastUpdate: Date.now(),
+      });
+    }
+  }, [proactiveStatus.isTriggering, isProactiveProcessing, proactiveStreamingState.status]);
+
   // Create new conversation
   const handleNewConversation = async () => {
     try {
@@ -237,6 +254,16 @@ function App() {
     setProactiveToolCalls(toolCalls);
   };
 
+  const isProactiveActive = isProactiveProcessing || proactiveStatus.isTriggering;
+  const isChatActive = isProcessing;
+  const activeConversationMode = isProactiveActive
+    ? "proactive"
+    : isChatActive
+      ? "chat"
+      : preferredConversationMode;
+  const globalAssistantBusy = isProcessing || isProactiveProcessing || proactiveStatus.isTriggering;
+  const globalDisabledMessage = "Assistant is busy. Please wait for the current response to finish.";
+
   // Handle sending message from FaceTimeView (delegates to ChatInterface)
   const handleSendMessage = useCallback((text) => {
     if (activeConversationMode === "proactive") {
@@ -273,7 +300,7 @@ function App() {
     ? PROACTIVE_CONVERSATION_ID
     : conversationId;
   const activeProcessing = activeConversationMode === "proactive"
-    ? isProactiveProcessing
+    ? isProactiveActive
     : isProcessing;
 
   return (
@@ -295,7 +322,7 @@ function App() {
           className={`tab ${activeTab === "chat" ? "active" : ""}`}
           onClick={() => {
             setActiveTab("chat");
-            setActiveConversationMode("chat");
+            setPreferredConversationMode("chat");
           }}
         >
           Chat
@@ -304,7 +331,7 @@ function App() {
           className={`tab ${activeTab === "proactive" ? "active" : ""}`}
           onClick={() => {
             setActiveTab("proactive");
-            setActiveConversationMode("proactive");
+            setPreferredConversationMode("proactive");
           }}
         >
           Proactive
@@ -352,6 +379,8 @@ function App() {
             onStreamingStateChange={handleStreamingStateChange}
             onToolCallsUpdate={handleToolCallsUpdate}
             onMessagesUpdate={handleMessagesUpdate}
+            externalDisabled={globalAssistantBusy}
+            externalDisabledMessage={globalDisabledMessage}
           />
         </div>
         <div
@@ -364,6 +393,7 @@ function App() {
             onClear={handleClearProactive}
             isClearing={isClearingProactive}
             chatRef={proactiveChatInterfaceRef}
+            isGlobalBusy={globalAssistantBusy}
             chatProps={{
               conversationId: PROACTIVE_CONVERSATION_ID,
               initialMessages: proactiveLoadedMessages,
@@ -374,6 +404,8 @@ function App() {
               onStreamingStateChange: handleProactiveStreamingStateChange,
               onToolCallsUpdate: handleProactiveToolCallsUpdate,
               onMessagesUpdate: handleProactiveMessagesUpdate,
+              externalDisabled: globalAssistantBusy,
+              externalDisabledMessage: globalDisabledMessage,
             }}
           />
         </div>
@@ -386,7 +418,7 @@ function App() {
             conversationId={activeConversationId}
             messages={activeMessages}
             onSendMessage={handleSendMessage}
-            isLoading={activeProcessing}
+            isLoading={globalAssistantBusy}
             onFullscreenChange={handleFaceFullscreenChange}
           />
         </div>
