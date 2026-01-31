@@ -23,6 +23,7 @@
 [ ] - Sync it with the face
 [ ] - add the loading with 3 dots like in normal chat interface.
 [ ] - See if proactive mode is off by default
+[ ] - When doing manual trigger the face states are incorrect
 
 
 

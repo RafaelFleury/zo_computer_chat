@@ -17,6 +17,7 @@ export default function FaceTimeView({
   onSendMessage,
   isLoading = false,
   onFullscreenChange,
+  isProactiveActive = false,
 }) {
   const [isSleeping, setIsSleeping] = useState(false);
   const [bubblesVisible, setBubblesVisible] = useState(false);
@@ -184,16 +185,18 @@ export default function FaceTimeView({
       <div className="facetime-main">
         <div className="facetime-container">
           <div
-            className={`face-wrapper clickable ${bubblesVisible ? "active" : ""}`}
+            className={`face-wrapper clickable ${bubblesVisible ? "active" : ""} ${
+              isProactiveActive && animationState !== "sleeping" ? "proactive-mode" : ""
+            }`}
             onClick={handleFaceClick}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => e.key === "Enter" && handleFaceClick()}
             aria-label={
-              isFullscreen 
-                ? "Double-click to exit fullscreen" 
-                : bubblesVisible 
-                  ? "Hide chat bubbles" 
+              isFullscreen
+                ? "Double-click to exit fullscreen"
+                : bubblesVisible
+                  ? "Hide chat bubbles"
                   : "Show chat bubbles"
             }
           >
