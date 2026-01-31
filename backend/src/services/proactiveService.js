@@ -13,7 +13,7 @@ import { addLog } from './logStore.js';
 import { proactivePersonaManager } from './proactivePersonaManager.js';
 
 export const PROACTIVE_CONVERSATION_ID = 'proactive';
-const PROACTIVE_TRIGGER_MESSAGE = 'Proactive trigger: decide whether to act or go back to sleep.';
+const PROACTIVE_TRIGGER_MESSAGE = '[System message sent by the backend in place of the user] Proactive trigger: decide whether to act or go back to sleep. If you are going to act, acknowledge this message by sending a message back to the user FIRST.';
 
 async function ensureConversationLoaded(conversationId) {
   if (conversations.has(conversationId)) {
@@ -66,25 +66,31 @@ export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
     });
   }
 
-  addLog('system_message', {
-    conversationId,
-    message: triggerMessage,
-    source: 'proactive_trigger',
-    proactive: true,
+  // Add trigger message as a user message so it appears in the chat
+  const triggerUserMessage = {
+    role: 'user',
+    content: `${triggerMessage}`,
+    isSystemTrigger: true,
     triggerSource: source
+  };
+  conversation.push(triggerUserMessage);
+
+  addLog('user_message', {
+    conversationId,
+    message: triggerUserMessage.content,
+    isSystemTrigger: true,
+    triggerSource: source,
+    proactive: true
   });
 
-  const systemMessage = `${baseSystemMessage}\n\n${triggerMessage}`;
+  // Use base system message only (without trigger appended)
+  const systemMessage = baseSystemMessage;
   const conversationForLLM = compressionService.buildCompressedContext(
     conversation,
     compressionMeta.compressionSummary,
     compressionMeta.compressedMessageCount,
     systemMessage
   );
-  const hasNonSystem = conversationForLLM.some((msg) => msg.role !== 'system');
-  if (!hasNonSystem) {
-    conversationForLLM.push({ role: 'user', content: 'Proceed.' });
-  }
 
   const toolCalls = [];
   const response = await llmClient.chat(conversationForLLM, (toolCallData) => {
