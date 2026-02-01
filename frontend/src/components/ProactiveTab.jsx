@@ -29,7 +29,7 @@ export default function ProactiveTab({
     <div className="proactive-tab">
       <div className="proactive-header">
         <div className="proactive-status">
-          <div className="proactive-title">Proactive Mode</div>
+          <h1 className="proactive-title">Proactive Mode</h1>
           <div className="proactive-meta">
             <span className={`proactive-indicator ${enabled ? "on" : "off"}`}>
               {enabled ? "Enabled" : "Disabled"}

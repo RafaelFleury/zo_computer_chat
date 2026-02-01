@@ -163,6 +163,7 @@
   font-size: var(--text-sm);
   font-family: var(--font-display);
   color: var(--text-secondary);
+  align-self: flex-start;
 }
 
 .setting-checkbox input {

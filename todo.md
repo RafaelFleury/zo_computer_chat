@@ -19,7 +19,7 @@
 [ ] - ensure the maximum token amount displayed is accurate (it probably is. just need a check)
 
 # Proactive
-[ ] - Review the sub header in the proactive tab to be more consisten with the site theme
+[X] - Review the sub header in the proactive tab to be more consistent with the site theme
 [ ] - Fix enabled button position on the settings
 [ ] - Sync it with the face
 [ ] - add the loading with 3 dots like in normal chat interface.

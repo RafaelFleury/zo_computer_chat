@@ -24,10 +24,11 @@
 }
 
 .proactive-title {
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   font-family: var(--font-display);
   font-weight: var(--weight-semibold);
   color: var(--text-primary);
+  margin: 0;
 }
 
 .proactive-meta {
