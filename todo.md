@@ -27,6 +27,19 @@
 [ ] - When doing manual trigger the face states are incorrect
 
 
+==================================================================================================================
+
+I want the tool calls display to be different and more informative. also as shown in the futureInterface image i want them to be shown in order as they are called, where the assistant sends a message, makes a tool call and sends another message, as an example.
+this needs to happen in the chat mode and in proactive mode. the current expandable button only shows the names of the tool calls and is always at the end of the whole assistant message
+
+the next one must have the label as the tool call name and when expanding must have a minimal style (compliant to the theme the interface already has) showing the Call and the Result in json like we have with the logs tab on the frontend.
+
+they have to be saved on the backend in the order they are made so on a chat reload they are correctly shown the same way as when the stream was happening
+
+when the tool call is being made it must show a loading state, with no opition to expand. after that must show a complete state, with the option to expand (or failed state if the tool call fails). Spinning wheel, green checkmark and red X (NOT emojis).
+
+for the expandable button style, use something similar to the button of tool call we already have. 
+
 
 ==================================================================================================================
 
