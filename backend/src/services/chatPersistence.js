@@ -92,8 +92,8 @@ class ChatPersistence {
         const insertMessage = db.prepare(`
           INSERT INTO messages (
             conversation_id, role, content, tool_calls, tool_calls_llm,
-            tool_call_id, name, sequence_number, is_compressed
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            tool_call_id, name, segments, sequence_number, is_compressed
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         messages.forEach((message, index) => {
@@ -105,6 +105,7 @@ class ChatPersistence {
             message.tool_calls ? JSON.stringify(message.tool_calls) : null,
             message.tool_call_id || null,
             message.name || null,
+            message.segments ? JSON.stringify(message.segments) : null,
             index,
             message.isCompressed ? 1 : 0
           );
@@ -181,7 +182,7 @@ class ChatPersistence {
 
       // Load messages ordered by sequence_number
       const messageRows = db.prepare(`
-        SELECT role, content, tool_calls, tool_calls_llm, tool_call_id, name, is_compressed
+        SELECT role, content, tool_calls, tool_calls_llm, tool_call_id, name, segments, is_compressed
         FROM messages
         WHERE conversation_id = ?
         ORDER BY sequence_number ASC
@@ -211,6 +212,10 @@ class ChatPersistence {
 
         if (row.name) {
           message.name = row.name;
+        }
+
+        if (row.segments) {
+          message.segments = JSON.parse(row.segments);
         }
 
         if (row.is_compressed) {

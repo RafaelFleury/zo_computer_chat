@@ -35,6 +35,7 @@ class SchemaService {
             tool_calls_llm TEXT,
             tool_call_id TEXT,
             name TEXT,
+            segments TEXT,
             sequence_number INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             is_compressed INTEGER DEFAULT 0,
@@ -95,6 +96,15 @@ class SchemaService {
         logger.info('Running migration: adding is_compressed column to messages table');
         db.exec(`
           ALTER TABLE messages ADD COLUMN is_compressed INTEGER DEFAULT 0;
+        `);
+      }
+
+      const hasSegments = messagesInfo.some(col => col.name === 'segments');
+
+      if (!hasSegments) {
+        logger.info('Running migration: adding segments column to messages table');
+        db.exec(`
+          ALTER TABLE messages ADD COLUMN segments TEXT DEFAULT NULL;
         `);
       }
 

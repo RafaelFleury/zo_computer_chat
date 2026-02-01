@@ -8,34 +8,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import { api } from "../services/api";
 import { showToast } from "./Toast";
+import ToolCallSegment from "./ToolCallSegment";
 import "./ChatInterface.css";
-
-// Tool calls expandable footer component
-function ToolCallsFooter({ toolCalls }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="tool-calls-footer">
-      <button
-        className="tool-calls-summary"
-        onClick={() => setExpanded(!expanded)}
-      >
-        ⚡ {toolCalls.length} {toolCalls.length === 1 ? 'tool' : 'tools'} used
-        <span className="expand-icon">{expanded ? '▼' : '▶'}</span>
-      </button>
-      {expanded && (
-        <div className="tool-calls-details">
-          {toolCalls.map((tool, i) => (
-            <div key={i} className="tool-call-item">
-              <div className="tool-call-name">{tool.toolName}</div>
-              <div className="tool-call-status">{tool.status}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const ChatInterface = forwardRef(function ChatInterface(
   {
@@ -285,6 +259,7 @@ const ChatInterface = forwardRef(function ChatInterface(
         role: "assistant",
         content: "",
         loading: true,
+        segments: [],
         toolCalls: [],
         process: [], // Track process steps
       },
@@ -329,23 +304,53 @@ const ChatInterface = forwardRef(function ChatInterface(
         userMessage,
         convId,
         // onChunk - called for each content piece
-        (content) => {
+        (content, segmentIndex) => {
           // Switch to talking state when receiving content
           updateStreamingState("talking");
 
           setMessages((prev) => {
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
-            updated[assistantMessageIndex] = {
-              ...current,
-              content: current.content + content,
-              loading: false,
-            };
+
+            // Handle segmented content
+            if (segmentIndex !== undefined) {
+              const segments = [...(current.segments || [])];
+              // Find or create the text segment at this index
+              const existingSegment = segments.findIndex(
+                (s) => s.type === "text" && s._segmentIndex === segmentIndex
+              );
+              if (existingSegment >= 0) {
+                // Update existing text segment
+                segments[existingSegment] = {
+                  ...segments[existingSegment],
+                  content: segments[existingSegment].content + content,
+                };
+              } else {
+                // Add new text segment
+                segments.push({
+                  type: "text",
+                  content,
+                  _segmentIndex: segmentIndex,
+                });
+              }
+              updated[assistantMessageIndex] = {
+                ...current,
+                segments,
+                loading: false,
+              };
+            } else {
+              // Backward compatibility: update content directly
+              updated[assistantMessageIndex] = {
+                ...current,
+                content: current.content + content,
+                loading: false,
+              };
+            }
             return updated;
           });
         },
         // onToolCall - called when tool is used
-        (toolCall) => {
+        (toolCall, segmentIndex) => {
           // Switch to thinking state when tool is called
           updateStreamingState("thinking");
 
@@ -381,6 +386,48 @@ const ChatInterface = forwardRef(function ChatInterface(
             const updated = [...prev];
             const current = updated[assistantMessageIndex];
 
+            // Handle segmented tool calls
+            if (segmentIndex !== undefined) {
+              const segments = [...(current.segments || [])];
+              // Find or create the tool call segment at this index
+              const existingSegmentIndex = segments.findIndex(
+                (s) =>
+                  s.type === "tool_call" &&
+                  s._segmentIndex === segmentIndex
+              );
+
+              if (existingSegmentIndex >= 0) {
+                // Update existing tool call segment
+                segments[existingSegmentIndex] = {
+                  ...segments[existingSegmentIndex],
+                  toolName: toolCall.toolName,
+                  args: toolCall.args,
+                  result: toolCall.result,
+                  status: toolCall.status,
+                  success: toolCall.success,
+                  error: toolCall.error,
+                };
+              } else {
+                // Add new tool call segment
+                segments.push({
+                  type: "tool_call",
+                  toolName: toolCall.toolName,
+                  args: toolCall.args,
+                  result: toolCall.result,
+                  status: toolCall.status,
+                  success: toolCall.success,
+                  error: toolCall.error,
+                  _segmentIndex: segmentIndex,
+                });
+              }
+
+              updated[assistantMessageIndex] = {
+                ...current,
+                segments,
+              };
+            }
+
+            // Always update toolCalls array for backward compatibility
             // Find if this tool call already exists (update status)
             const existingToolIndex = current.toolCalls?.findIndex(
               (t) =>
@@ -419,7 +466,7 @@ const ChatInterface = forwardRef(function ChatInterface(
             }
 
             updated[assistantMessageIndex] = {
-              ...current,
+              ...updated[assistantMessageIndex],
               toolCalls: newToolCalls,
               process: processSteps,
             };
@@ -542,7 +589,7 @@ const ChatInterface = forwardRef(function ChatInterface(
               </div>
               <div className="message-content">
                 {/* Main content */}
-                {msg.loading && !msg.content ? (
+                {msg.loading && !msg.content && (!msg.segments || msg.segments.length === 0) ? (
                   <div className="loading-indicator">
                     <span className="dot"></span>
                     <span className="dot"></span>
@@ -550,6 +597,35 @@ const ChatInterface = forwardRef(function ChatInterface(
                   </div>
                 ) : msg.error ? (
                   <div className="error-message">{msg.content}</div>
+                ) : msg.segments && msg.segments.length > 0 ? (
+                  <>
+                    {msg.segments.map((segment, segmentIdx) => (
+                      <div key={segmentIdx} className="message-segment">
+                        {segment.type === "text" ? (
+                          <div className="message-text">
+                            <ReactMarkdown>{segment.content}</ReactMarkdown>
+                          </div>
+                        ) : segment.type === "tool_call" ? (
+                          <ToolCallSegment
+                            toolName={segment.toolName}
+                            args={segment.args}
+                            result={segment.result}
+                            status={segment.status}
+                            success={segment.success}
+                            error={segment.error}
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                    {/* Show loading dots at end of message while still generating */}
+                    {msg.loading && (
+                      <div className="inline-loading">
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                        <span className="dot"></span>
+                      </div>
+                    )}
+                  </>
                 ) : msg.content ? (
                   <>
                     <div className="message-text">
@@ -563,16 +639,20 @@ const ChatInterface = forwardRef(function ChatInterface(
                         <span className="dot"></span>
                       </div>
                     )}
+                    {/* Backward compatibility: render tool calls inline */}
+                    {msg.toolCalls && msg.toolCalls.map((toolCall, toolIdx) => (
+                      <ToolCallSegment
+                        key={toolIdx}
+                        toolName={toolCall.toolName}
+                        args={toolCall.args}
+                        result={toolCall.result}
+                        status={toolCall.status}
+                        success={toolCall.success}
+                        error={toolCall.error}
+                      />
+                    ))}
                   </>
                 ) : null}
-
-                {/* Tool calls footer - expandable */}
-                {msg.role === "assistant" &&
-                  !msg.loading &&
-                  msg.toolCalls &&
-                  msg.toolCalls.length > 0 && (
-                    <ToolCallsFooter toolCalls={msg.toolCalls} />
-                  )}
               </div>
             </div>
           ))

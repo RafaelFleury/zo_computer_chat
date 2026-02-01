@@ -6,7 +6,7 @@ import { memoryManager } from '../services/memoryManager.js';
 import { compressionService } from '../services/compressionService.js';
 import { settingsManager } from '../services/settingsManager.js';
 import { proactiveScheduler } from '../services/proactiveScheduler.js';
-import { PROACTIVE_CONVERSATION_ID } from '../services/proactiveService.js';
+import { PROACTIVE_CONVERSATION_ID, runProactiveTriggerStream } from '../services/proactiveService.js';
 import { activeChatManager } from '../services/activeChatManager.js';
 import {
   conversations,
@@ -133,8 +133,9 @@ router.post('/', async (req, res) => {
       hasCompression: !!compressionMeta.compressionSummary
     });
 
-    // Track tool calls
+    // Track tool calls and build segments
     const toolCalls = [];
+    const segments = []; // Build segments from tool calls and response
 
     // Send to LLM with full conversation history
     const response = await llmClient.chat(
@@ -143,11 +144,49 @@ router.post('/', async (req, res) => {
         // Log tool call
         addLog('tool_call', toolCallData);
         toolCalls.push(toolCallData);
+
+        // Build segments for non-streaming (simpler: just add tool calls as they complete)
+        const existingIndex = segments.findIndex(
+          s => s.type === 'tool_call' && s.toolName === toolCallData.toolName && s.status !== 'completed' && s.status !== 'failed'
+        );
+
+        if (existingIndex >= 0) {
+          segments[existingIndex] = { type: 'tool_call', ...toolCallData };
+        } else {
+          segments.push({ type: 'tool_call', ...toolCallData });
+        }
       }
     );
 
-    // Add assistant response to conversation
-    conversation.push({ role: 'assistant', content: response.message, toolCalls });
+    // Build final segments array: text content + tool calls in order
+    // For non-streaming, we put all text first, then all tool calls
+    const finalSegments = [];
+    if (response.message) {
+      finalSegments.push({ type: 'text', content: response.message });
+    }
+    // Add any completed tool calls that weren't already added
+    toolCalls.forEach(tc => {
+      const alreadyInSegments = segments.some(s =>
+        s.type === 'tool_call' && s.toolName === tc.toolName && s.status === tc.status
+      );
+      if (!alreadyInSegments) {
+        finalSegments.push({ type: 'tool_call', ...tc });
+      }
+    });
+    // Add any segments we already tracked
+    segments.forEach(s => {
+      if (s.type === 'tool_call') {
+        const alreadyInFinal = finalSegments.some(fs =>
+          fs.type === 'tool_call' && fs.toolName === s.toolName && fs.status === s.status
+        );
+        if (!alreadyInFinal) {
+          finalSegments.push(s);
+        }
+      }
+    });
+
+    // Add assistant response to conversation with segments
+    conversation.push({ role: 'assistant', content: response.message, toolCalls, segments: finalSegments });
 
     // Log response
     addLog('assistant_message', {
@@ -307,14 +346,27 @@ router.post('/stream', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
 
     const toolCalls = [];
+    const segments = []; // Track ordered text and tool call segments
+    let currentTextSegmentIndex = -1;
 
     // Stream response with full conversation history
     const result = await llmClient.streamChat(
       conversationForLLM,
       (chunk) => {
-        // Send chunk to client
+        // Send chunk to client with segment info
         try {
-          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          // Track text segments
+          if (currentTextSegmentIndex === -1 || segments[currentTextSegmentIndex]?.type !== 'text') {
+            currentTextSegmentIndex = segments.length;
+            segments.push({ type: 'text', content: chunk.content });
+          } else {
+            segments[currentTextSegmentIndex].content += chunk.content;
+          }
+
+          res.write(`data: ${JSON.stringify({
+            ...chunk,
+            segmentIndex: currentTextSegmentIndex
+          })}\n\n`);
         } catch (err) {
           // Client may have disconnected, but we continue processing
         }
@@ -324,11 +376,36 @@ router.post('/stream', async (req, res) => {
         addLog('tool_call', toolCallData);
         toolCalls.push(toolCallData);
 
-        // Notify client about tool call
+        // Track tool call segments
+        const existingIndex = segments.findIndex(
+          s => s.type === 'tool_call' && s.toolName === toolCallData.toolName && s.status !== 'completed' && s.status !== 'failed'
+        );
+
+        let segmentIndex;
+        if (existingIndex >= 0) {
+          // Update existing segment
+          segments[existingIndex] = {
+            type: 'tool_call',
+            ...toolCallData
+          };
+          segmentIndex = existingIndex;
+        } else {
+          // Create new segment
+          segmentIndex = segments.length;
+          segments.push({
+            type: 'tool_call',
+            ...toolCallData
+          });
+          // Reset text segment tracking since tool call interrupts text flow
+          currentTextSegmentIndex = -1;
+        }
+
+        // Notify client about tool call with segment info
         try {
           res.write(`data: ${JSON.stringify({
             type: 'tool_call',
-            ...toolCallData
+            ...toolCallData,
+            segmentIndex
           })}\n\n`);
         } catch (err) {
           // Client may have disconnected, but we continue processing
@@ -336,8 +413,8 @@ router.post('/stream', async (req, res) => {
       }
     );
 
-    // Add assistant response to conversation
-    conversation.push({ role: 'assistant', content: result.message, toolCalls });
+    // Add assistant response to conversation with segments
+    conversation.push({ role: 'assistant', content: result.message, toolCalls, segments });
 
     // Log response
     addLog('assistant_message', {
@@ -583,6 +660,11 @@ router.get('/history/:id', async (req, res) => {
         normalized.tool_calls = msg.tool_calls;
       }
 
+      // Preserve segments if present (inline display format)
+      if (msg.segments) {
+        normalized.segments = msg.segments;
+      }
+
       // Preserve tool-specific fields if present (for tool role messages)
       if (msg.role === 'tool' && msg.name && msg.tool_call_id) {
         normalized.name = msg.name;
@@ -612,6 +694,13 @@ router.get('/history/:id', async (req, res) => {
           role: msg.role,
           toolCallsCount: msg.toolCalls.length,
           toolCallsSample: msg.toolCalls[0]
+        });
+      }
+      if (msg.segments) {
+        logger.info(`Message ${idx} has segments:`, {
+          role: msg.role,
+          segmentsCount: msg.segments.length,
+          segmentsSample: msg.segments[0]
         });
       }
     });
@@ -1041,6 +1130,62 @@ router.post('/proactive/trigger', async (req, res) => {
     logger.error('Failed to run manual proactive trigger:', error);
     const statusCode = error.statusCode || 500;
     sendError(res, statusCode, error.message || 'Failed to trigger proactive mode');
+  }
+});
+
+// POST /api/chat/proactive/stream - Streaming proactive trigger
+router.post('/proactive/stream', async (req, res) => {
+  let lock = null;
+  try {
+    lock = activeChatManager.tryAcquire({
+      source: 'proactive_stream',
+      conversationId: PROACTIVE_CONVERSATION_ID
+    });
+
+    if (!lock.acquired) {
+      logger.warn('Proactive streaming blocked (another chat active)', lock.active);
+      return sendError(res, 409, 'Another chat is currently active. Please wait.');
+    }
+
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Stream the proactive trigger
+    const stream = runProactiveTriggerStream({ source: 'manual_stream' });
+
+    for await (const event of stream) {
+      try {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+
+        // If the event is done, end the stream
+        if (event.type === 'done') {
+          res.end();
+          break;
+        }
+      } catch (err) {
+        // Client may have disconnected
+        logger.warn('Client disconnected from proactive stream');
+        break;
+      }
+    }
+  } catch (error) {
+    logger.error('Proactive streaming failed', error);
+
+    try {
+      res.write(`data: ${JSON.stringify({
+        type: 'error',
+        error: error.message
+      })}\n\n`);
+      res.end();
+    } catch (err) {
+      // Response already closed
+    }
+  } finally {
+    if (lock?.acquired) {
+      activeChatManager.release(lock.token);
+    }
   }
 });
 

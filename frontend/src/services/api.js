@@ -78,9 +78,9 @@ export const api = {
             const data = JSON.parse(line.slice(6));
 
             if (data.type === 'content') {
-              onChunk?.(data.content);
+              onChunk?.(data.content, data.segmentIndex);
             } else if (data.type === 'tool_call') {
-              onToolCall?.(data);
+              onToolCall?.(data, data.segmentIndex);
             } else if (data.type === 'usage') {
               onUsage?.(data.usage);
             } else if (data.type === 'compression_start') {
@@ -88,6 +88,71 @@ export const api = {
             } else if (data.type === 'compression') {
               onCompression?.(data);
             } else if (data.type === 'done') {
+              return;
+            } else if (data.type === 'error') {
+              throw new Error(data.error);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.cancel();
+    }
+  },
+
+  async streamProactiveMessage(onChunk, onToolCall, onUsage, onCompression, onCompressionStart, onDone, signal) {
+    const response = await fetch(`${API_URL}/api/chat/proactive/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+      signal,
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to start proactive stream';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || errorMessage;
+      } catch (err) {
+        // Ignore JSON parsing errors
+      }
+      const requestError = new Error(errorMessage);
+      requestError.status = response.status;
+      throw requestError;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'content') {
+              onChunk?.(data.content, data.segmentIndex);
+            } else if (data.type === 'tool_call') {
+              onToolCall?.(data, data.segmentIndex);
+            } else if (data.type === 'usage') {
+              onUsage?.(data.usage);
+            } else if (data.type === 'compression_start') {
+              onCompressionStart?.();
+            } else if (data.type === 'compression') {
+              onCompression?.(data);
+            } else if (data.type === 'done') {
+              onDone?.(data);
               return;
             } else if (data.type === 'error') {
               throw new Error(data.error);
