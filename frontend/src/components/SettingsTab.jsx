@@ -264,14 +264,14 @@ function SettingsTab() {
             Configure the autonomous proactive assistant triggers and prompt settings.
           </p>
 
-          <div className="setting-item">
-            <label className="setting-toggle">
+          <div className="setting-item setting-item-row">
+            <div className="setting-info-column">
               <span className="setting-label">Enable Proactive Mode</span>
               <span className="setting-description">
                 Allow scheduled proactive runs to occur in the Proactive tab.
               </span>
-            </label>
-            <label className="setting-checkbox">
+            </div>
+            <label className="toggle-switch">
               <input
                 type="checkbox"
                 checked={localSettings.proactive.enabled}
@@ -279,7 +279,7 @@ function SettingsTab() {
                   handleProactiveChange("enabled", e.target.checked)
                 }
               />
-              <span>Enabled</span>
+              <span className="toggle-slider"></span>
             </label>
           </div>
 
