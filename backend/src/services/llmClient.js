@@ -92,6 +92,7 @@ class LLMClient {
             // Call the callback if provided
             if (onToolCall) {
               onToolCall({
+                tool_call_id: toolCall.id,
                 toolName,
                 args: toolArgs,
                 result,
@@ -110,6 +111,7 @@ class LLMClient {
 
             if (onToolCall) {
               onToolCall({
+                tool_call_id: toolCall.id,
                 toolName,
                 args: toolArgs,
                 error: error.message,

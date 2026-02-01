@@ -11,6 +11,7 @@
 [ ] - Improve logs in the chat
 
 # Low priority
+[ ] - I cant delete 2 memories before hitting "save". Probably cand do other ones either, like edit or add.
 [ ] - sync every site instance with each other
 [ ] - resolve a bug of chat being kept expanded after sending a message
 [ ] - The stop buttom only works on the frontend. the model doesnt actually stop. theres some backend stuff related but not working.

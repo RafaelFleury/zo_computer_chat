@@ -7,7 +7,9 @@ import {
   compressionMetadata,
   compressionLocks,
   touchConversation,
-  ensureCompressionMetadata
+  ensureCompressionMetadata,
+  shouldLogSystemMessage,
+  markSystemMessageAsLogged
 } from './conversationStore.js';
 import { addLog } from './logStore.js';
 import { proactivePersonaManager } from './proactivePersonaManager.js';
@@ -49,21 +51,31 @@ export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
   logger.info('Running proactive trigger', { conversationId, source });
 
   const baseSystemMessage = proactivePersonaManager.getProactiveSystemMessage();
-  addLog('system_message', {
-    conversationId,
-    message: baseSystemMessage,
-    source: 'proactive_base',
-    proactive: true
-  });
+  const compressionSummary = compressionMeta.compressionSummary && compressionMeta.compressedMessageCount > 0
+    ? compressionMeta.compressionSummary
+    : null;
 
-  if (compressionMeta.compressionSummary && compressionMeta.compressedMessageCount > 0) {
-    const summaryMessage = `=== CONVERSATION SUMMARY ===\nThe following is a summary of the first ${compressionMeta.compressedMessageCount} messages in this conversation:\n\n${compressionMeta.compressionSummary}\n\n=== END SUMMARY ===\n\nThe messages below continue from where the summary ends.`;
+  const { shouldLog, currentState } = shouldLogSystemMessage(conversationId, baseSystemMessage, compressionSummary);
+
+  if (shouldLog) {
     addLog('system_message', {
       conversationId,
-      message: summaryMessage,
-      source: 'compression_summary',
+      message: baseSystemMessage,
+      source: 'proactive_base',
       proactive: true
     });
+
+    if (compressionSummary) {
+      const summaryMessage = `=== CONVERSATION SUMMARY ===\nThe following is a summary of the first ${compressionMeta.compressedMessageCount} messages in this conversation:\n\n${compressionMeta.compressionSummary}\n\n=== END SUMMARY ===\n\nThe messages below continue from where the summary ends.`;
+      addLog('system_message', {
+        conversationId,
+        message: summaryMessage,
+        source: 'compression_summary',
+        proactive: true
+      });
+    }
+
+    markSystemMessageAsLogged(conversationId, currentState);
   }
 
   // Add trigger message as a user message so it appears in the chat

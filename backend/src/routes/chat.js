@@ -15,7 +15,9 @@ import {
   compressionLocks,
   touchConversation,
   ensureCompressionMetadata,
-  startConversationCleanup
+  startConversationCleanup,
+  shouldLogSystemMessage,
+  markSystemMessageAsLogged
 } from '../services/conversationStore.js';
 import { addLog, getLogs, clearLogs } from '../services/logStore.js';
 import { logger } from '../utils/logger.js';
@@ -34,6 +36,16 @@ function sendError(res, statusCode, message, details = null) {
 }
 
 function logSystemMessages({ conversationId, systemMessage, compressionMeta, context = 'chat' }) {
+  const compressionSummary = compressionMeta?.compressionSummary && compressionMeta?.compressedMessageCount > 0
+    ? compressionMeta.compressionSummary
+    : null;
+
+  const { shouldLog, currentState } = shouldLogSystemMessage(conversationId, systemMessage, compressionSummary);
+
+  if (!shouldLog) {
+    return;
+  }
+
   if (systemMessage) {
     addLog('system_message', {
       conversationId,
@@ -43,7 +55,7 @@ function logSystemMessages({ conversationId, systemMessage, compressionMeta, con
     });
   }
 
-  if (compressionMeta?.compressionSummary && compressionMeta.compressedMessageCount > 0) {
+  if (compressionSummary) {
     const summaryMessage = `=== CONVERSATION SUMMARY ===\nThe following is a summary of the first ${compressionMeta.compressedMessageCount} messages in this conversation:\n\n${compressionMeta.compressionSummary}\n\n=== END SUMMARY ===\n\nThe messages below continue from where the summary ends.`;
     addLog('system_message', {
       conversationId,
@@ -52,6 +64,8 @@ function logSystemMessages({ conversationId, systemMessage, compressionMeta, con
       context
     });
   }
+
+  markSystemMessageAsLogged(conversationId, currentState);
 }
 
 // POST /api/chat - Send a message and get response
