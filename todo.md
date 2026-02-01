@@ -38,6 +38,8 @@ they have to be saved on the backend in the order they are made so on a chat rel
 
 when the tool call is being made it must show a loading state, with no opition to expand. after that must show a complete state, with the option to expand (or failed state if the tool call fails). Spinning wheel, green checkmark and red X (NOT emojis).
 
+do not concern about migrating the existing database. consider them temporary
+
 for the expandable button style, use something similar to the button of tool call we already have. 
 
 
