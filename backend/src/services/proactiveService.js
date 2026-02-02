@@ -1,3 +1,49 @@
+import { logger } from '../utils/logger.js';
+import { runChatCompletion } from './chatPipeline.js';
+import { proactivePersonaManager } from './proactivePersonaManager.js';
+
+export const PROACTIVE_CONVERSATION_ID = 'proactive';
+export const PROACTIVE_TRIGGER_MESSAGE = '[System message sent by the backend in place of the user] Proactive trigger: decide whether to act or go back to sleep. If you are going to act, acknowledge this message by sending a message back to the user FIRST.';
+
+export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
+  const conversationId = PROACTIVE_CONVERSATION_ID;
+  const systemMessage = proactivePersonaManager.getProactiveSystemMessage();
+
+  logger.info('Running proactive trigger', { conversationId, source });
+
+  return runChatCompletion({
+    conversationId,
+    message: PROACTIVE_TRIGGER_MESSAGE,
+    systemMessage,
+    loadFromPersistence: true,
+    messageMeta: {
+      isSystemTrigger: true,
+      triggerSource: source
+    },
+    userLogMeta: {
+      proactive: true,
+      isSystemTrigger: true,
+      triggerSource: source
+    },
+    assistantLogMeta: {
+      proactive: true,
+      source
+    },
+    toolLogMeta: {
+      proactive: true,
+      source
+    },
+    systemLogMeta: {
+      proactive: true,
+      source: 'proactive_base'
+    },
+    compressionLogMeta: {
+      proactive: true,
+      source: 'compression_summary'
+    }
+  });
+}
+/*
 import { llmClient } from './llmClient.js';
 import { chatPersistence } from './chatPersistence.js';
 import { compressionService } from './compressionService.js';
@@ -367,3 +413,4 @@ export async function* runProactiveTriggerStream({ source = 'scheduled' } = {}) 
     segments
   };
 }
+*/

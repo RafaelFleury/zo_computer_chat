@@ -117,6 +117,10 @@ class ProactiveScheduler {
     }
   }
 
+  markManualTrigger() {
+    this.lastTriggered = new Date().toISOString();
+  }
+
   getStatus() {
     return {
       enabled: this.enabled,

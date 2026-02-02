@@ -11,9 +11,9 @@ function formatTimestamp(value) {
 export default function ProactiveTab({
   status,
   onManualTrigger,
-  isManualTriggering,
   onClear,
   isClearing,
+  isProcessing = false,
   chatProps,
   chatRef,
   isGlobalBusy = false,
@@ -22,51 +22,55 @@ export default function ProactiveTab({
   const intervalMinutes = status?.intervalMinutes ?? 15;
   const nextTrigger = enabled && status?.isRunning ? formatTimestamp(status?.nextTriggerAt) : "Disabled";
   const lastTriggered = formatTimestamp(status?.lastTriggered);
-  const triggerDisabled = Boolean(isManualTriggering || status?.isTriggering || isGlobalBusy);
-  const clearDisabled = Boolean(isClearing || status?.isTriggering || isManualTriggering);
+  const triggerInFlight = Boolean(status?.isTriggering || isProcessing);
+  const triggerDisabled = Boolean(triggerInFlight || isGlobalBusy);
+  const clearDisabled = Boolean(isClearing || status?.isTriggering || isProcessing);
+  const triggerLabel = triggerInFlight ? "Triggering..." : "Manual Trigger";
+
+  const headerContent = (
+    <div className="proactive-header">
+      <div className="proactive-status">
+        <h1 className="proactive-title">Proactive Mode</h1>
+        <div className="proactive-meta">
+          <span className={`proactive-indicator ${enabled ? "on" : "off"}`}>
+            {enabled ? "Enabled" : "Disabled"}
+          </span>
+          <span className="proactive-meta-item">
+            Interval: {intervalMinutes} min
+          </span>
+          <span className="proactive-meta-item">
+            Last: {lastTriggered}
+          </span>
+          <span className="proactive-meta-item">
+            Next: {nextTrigger}
+          </span>
+        </div>
+      </div>
+      <div className="proactive-controls">
+        <button
+          className="proactive-button"
+          onClick={onManualTrigger}
+          disabled={triggerDisabled}
+          title="Trigger proactive run now"
+        >
+          {triggerLabel}
+        </button>
+        <button
+          className="proactive-button secondary"
+          onClick={onClear}
+          disabled={clearDisabled}
+          title="Clear proactive conversation"
+        >
+          {isClearing ? "Clearing..." : "Clear"}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="proactive-tab">
-      <div className="proactive-header">
-        <div className="proactive-status">
-          <h1 className="proactive-title">Proactive Mode</h1>
-          <div className="proactive-meta">
-            <span className={`proactive-indicator ${enabled ? "on" : "off"}`}>
-              {enabled ? "Enabled" : "Disabled"}
-            </span>
-            <span className="proactive-meta-item">
-              Interval: {intervalMinutes} min
-            </span>
-            <span className="proactive-meta-item">
-              Last: {lastTriggered}
-            </span>
-            <span className="proactive-meta-item">
-              Next: {nextTrigger}
-            </span>
-          </div>
-        </div>
-        <div className="proactive-controls">
-          <button
-            className="proactive-button"
-            onClick={onManualTrigger}
-            disabled={triggerDisabled}
-            title="Trigger proactive run now"
-          >
-            {triggerDisabled ? "Triggering..." : "Manual Trigger"}
-          </button>
-          <button
-            className="proactive-button secondary"
-            onClick={onClear}
-            disabled={clearDisabled}
-            title="Clear proactive conversation"
-          >
-            {isClearing ? "Clearing..." : "Clear"}
-          </button>
-        </div>
-      </div>
-
       <div className="proactive-chat">
-        <ChatInterface ref={chatRef} {...chatProps} />
+        <ChatInterface ref={chatRef} headerContent={headerContent} {...chatProps} />
       </div>
     </div>
   );

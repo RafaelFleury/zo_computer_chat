@@ -11,6 +11,7 @@ import { API_URL, api } from "./services/api";
 import "./App.css";
 
 const PROACTIVE_CONVERSATION_ID = "proactive";
+const DEFAULT_PROACTIVE_TRIGGER_MESSAGE = "[System message sent by the backend in place of the user] Proactive trigger: decide whether to act or go back to sleep. If you are going to act, acknowledge this message by sending a message back to the user FIRST.";
 
 function App() {
   const [activeTab, setActiveTab] = useState("chat");
@@ -54,9 +55,9 @@ function App() {
     nextTriggerAt: null,
     isRunning: false,
     isTriggering: false,
-    conversationId: PROACTIVE_CONVERSATION_ID
+    conversationId: PROACTIVE_CONVERSATION_ID,
+    triggerMessage: DEFAULT_PROACTIVE_TRIGGER_MESSAGE
   });
-  const [isManualTriggering, setIsManualTriggering] = useState(false);
   const [isClearingProactive, setIsClearingProactive] = useState(false);
   const [preferredConversationMode, setPreferredConversationMode] = useState("chat");
   const lastProactiveTriggerRef = useRef(null);
@@ -115,7 +116,11 @@ function App() {
   const fetchProactiveStatus = useCallback(async () => {
     try {
       const status = await api.getProactiveStatus();
-      setProactiveStatus(status);
+      setProactiveStatus((prev) => ({
+        ...prev,
+        ...status,
+        triggerMessage: status?.triggerMessage ?? prev.triggerMessage
+      }));
 
       if (status?.lastTriggered && status.lastTriggered !== lastProactiveTriggerRef.current) {
         lastProactiveTriggerRef.current = status.lastTriggered;
@@ -126,20 +131,10 @@ function App() {
     }
   }, [loadProactiveConversation]);
 
-  const handleManualProactiveTrigger = useCallback(async () => {
-    if (isManualTriggering) return;
-    setIsManualTriggering(true);
-    try {
-      await api.triggerProactive();
-      showToast("Proactive trigger completed", "success");
-      await loadProactiveConversation();
-      await fetchProactiveStatus();
-    } catch (error) {
-      showToast(error.message || "Failed to trigger proactive mode", "error");
-    } finally {
-      setIsManualTriggering(false);
-    }
-  }, [fetchProactiveStatus, isManualTriggering, loadProactiveConversation]);
+  const handleManualProactiveTrigger = useCallback(() => {
+    const triggerMessage = proactiveStatus?.triggerMessage || DEFAULT_PROACTIVE_TRIGGER_MESSAGE;
+    proactiveChatInterfaceRef.current?.sendMessage(triggerMessage);
+  }, [proactiveStatus?.triggerMessage]);
 
   const handleClearProactive = useCallback(async () => {
     if (isClearingProactive) return;
@@ -389,7 +384,7 @@ function App() {
           <ProactiveTab
             status={proactiveStatus}
             onManualTrigger={handleManualProactiveTrigger}
-            isManualTriggering={isManualTriggering}
+            isProcessing={isProactiveProcessing}
             onClear={handleClearProactive}
             isClearing={isClearingProactive}
             chatRef={proactiveChatInterfaceRef}

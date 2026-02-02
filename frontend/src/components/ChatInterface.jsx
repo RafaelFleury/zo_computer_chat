@@ -17,6 +17,7 @@ const ChatInterface = forwardRef(function ChatInterface(
     initialMessages,
     initialUsage,
     initialCompressionInfo,
+    headerContent,
     onConversationChange,
     onMessageSent,
     onProcessingChange,
@@ -565,10 +566,14 @@ const ChatInterface = forwardRef(function ChatInterface(
 
   return (
     <div className="chat-interface">
-      <div className="chat-header">
-        <h1>Zo Computer Chat</h1>
-        <p className="subtitle">Powered by GLM-4.7 + Zo MCP</p>
-      </div>
+      {headerContent !== undefined ? (
+        headerContent
+      ) : (
+        <div className="chat-header">
+          <h1>Zo Computer Chat</h1>
+          <p className="subtitle">Powered by GLM-4.7 + Zo MCP</p>
+        </div>
+      )}
 
       <div className="messages-container">
         {messages.length === 0 ? (

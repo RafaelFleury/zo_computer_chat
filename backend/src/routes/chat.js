@@ -1,13 +1,14 @@
 import express from 'express';
-import { llmClient } from '../services/llmClient.js';
 import { chatPersistence } from '../services/chatPersistence.js';
 import { personaManager } from '../services/personaManager.js';
 import { memoryManager } from '../services/memoryManager.js';
 import { compressionService } from '../services/compressionService.js';
 import { settingsManager } from '../services/settingsManager.js';
 import { proactiveScheduler } from '../services/proactiveScheduler.js';
-import { PROACTIVE_CONVERSATION_ID, runProactiveTriggerStream } from '../services/proactiveService.js';
+import { proactivePersonaManager } from '../services/proactivePersonaManager.js';
+import { PROACTIVE_CONVERSATION_ID, PROACTIVE_TRIGGER_MESSAGE } from '../services/proactiveService.js';
 import { activeChatManager } from '../services/activeChatManager.js';
+import { runChatCompletion, runChatStream } from '../services/chatPipeline.js';
 import {
   conversations,
   compressionMetadata,
@@ -78,8 +79,13 @@ router.post('/', async (req, res) => {
       return sendError(res, 400, 'Message is required');
     }
 
+    const isProactiveConversation = conversationId === PROACTIVE_CONVERSATION_ID;
+    const isSystemTrigger = isProactiveConversation && message === PROACTIVE_TRIGGER_MESSAGE;
+    const triggerSource = isSystemTrigger ? 'manual_ui' : null;
+    const logSource = isProactiveConversation ? (triggerSource || 'manual_chat') : null;
+
     lock = activeChatManager.tryAcquire({
-      source: 'chat',
+      source: isProactiveConversation ? 'proactive_manual' : 'chat',
       conversationId
     });
 
@@ -89,7 +95,43 @@ router.post('/', async (req, res) => {
     }
 
     logger.info('Received chat message', { conversationId, message });
-    addLog('user_message', { conversationId, message });
+
+    const systemMessage = isProactiveConversation
+      ? proactivePersonaManager.getProactiveSystemMessage()
+      : personaManager.getSystemMessage();
+
+    const result = await runChatCompletion({
+      conversationId,
+      message,
+      systemMessage,
+      loadFromPersistence: isProactiveConversation,
+      messageMeta: isSystemTrigger ? { isSystemTrigger: true, triggerSource } : {},
+      userLogMeta: {
+        ...(isProactiveConversation ? { proactive: true } : {}),
+        ...(isSystemTrigger ? { isSystemTrigger: true, triggerSource } : {})
+      },
+      assistantLogMeta: isProactiveConversation ? { proactive: true, source: logSource } : {},
+      toolLogMeta: isProactiveConversation ? { proactive: true, source: logSource } : {},
+      systemLogMeta: isProactiveConversation
+        ? { proactive: true, source: 'proactive_base' }
+        : { source: 'base', context: 'chat' },
+      compressionLogMeta: isProactiveConversation
+        ? { proactive: true, source: 'compression_summary' }
+        : { source: 'compression_summary', context: 'chat' }
+    });
+
+    if (isProactiveConversation) {
+      proactiveScheduler.markManualTrigger();
+    }
+
+    return res.json({
+      message: result.message,
+      conversationId,
+      usage: result.usage,
+      toolCalls: result.toolCalls
+    });
+
+    /* addLog('user_message', { conversationId, message });
 
     // Get or create conversation
     if (!conversations.has(conversationId)) {
@@ -265,6 +307,7 @@ router.post('/', async (req, res) => {
       toolCalls
     });
 
+  */
   } catch (error) {
     logger.error('Chat request failed', error);
     addLog('error', { error: error.message, stack: error.stack });
@@ -286,8 +329,13 @@ router.post('/stream', async (req, res) => {
       return sendError(res, 400, 'Message is required');
     }
 
+    const isProactiveConversation = conversationId === PROACTIVE_CONVERSATION_ID;
+    const isSystemTrigger = isProactiveConversation && message === PROACTIVE_TRIGGER_MESSAGE;
+    const triggerSource = isSystemTrigger ? 'manual_ui' : null;
+    const logSource = isProactiveConversation ? (triggerSource || 'manual_chat') : null;
+
     lock = activeChatManager.tryAcquire({
-      source: 'chat',
+      source: isProactiveConversation ? 'proactive_stream' : 'chat',
       conversationId
     });
 
@@ -297,7 +345,51 @@ router.post('/stream', async (req, res) => {
     }
 
     logger.info('Received streaming chat message', { conversationId, message });
-    addLog('user_message', { conversationId, message, streaming: true });
+
+    // Set up SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const systemMessage = isProactiveConversation
+      ? proactivePersonaManager.getProactiveSystemMessage()
+      : personaManager.getSystemMessage();
+
+    await runChatStream({
+      conversationId,
+      message,
+      systemMessage,
+      loadFromPersistence: isProactiveConversation,
+      messageMeta: isSystemTrigger ? { isSystemTrigger: true, triggerSource } : {},
+      userLogMeta: {
+        ...(isProactiveConversation ? { proactive: true } : {}),
+        ...(isSystemTrigger ? { isSystemTrigger: true, triggerSource } : {}),
+        streaming: true
+      },
+      assistantLogMeta: {
+        ...(isProactiveConversation ? { proactive: true, source: logSource } : {}),
+        streaming: true
+      },
+      toolLogMeta: isProactiveConversation ? { proactive: true, source: logSource } : {},
+      systemLogMeta: isProactiveConversation
+        ? { proactive: true, source: 'proactive_base' }
+        : { source: 'base', context: 'chat' },
+      compressionLogMeta: isProactiveConversation
+        ? { proactive: true, source: 'compression_summary' }
+        : { source: 'compression_summary', context: 'chat' },
+      onEvent: (event) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+    });
+
+    if (isProactiveConversation) {
+      proactiveScheduler.markManualTrigger();
+    }
+
+    res.end();
+    return;
+
+    /* addLog('user_message', { conversationId, message, streaming: true });
 
     // Get or create conversation
     if (!conversations.has(conversationId)) {
@@ -527,6 +619,7 @@ router.post('/stream', async (req, res) => {
       // Client may have disconnected, connection already closed
     }
 
+  */
   } catch (error) {
     logger.error('Streaming chat failed', error);
     addLog('error', { error: error.message, stack: error.stack });
@@ -1109,7 +1202,8 @@ router.get('/proactive/status', (req, res) => {
     const status = proactiveScheduler.getStatus();
     res.json({
       ...status,
-      conversationId: PROACTIVE_CONVERSATION_ID
+      conversationId: PROACTIVE_CONVERSATION_ID,
+      triggerMessage: PROACTIVE_TRIGGER_MESSAGE
     });
   } catch (error) {
     logger.error('Failed to get proactive status:', error);
@@ -1152,24 +1246,45 @@ router.post('/proactive/stream', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    // Stream the proactive trigger
-    const stream = runProactiveTriggerStream({ source: 'manual_stream' });
+    const systemMessage = proactivePersonaManager.getProactiveSystemMessage();
 
-    for await (const event of stream) {
-      try {
+    await runChatStream({
+      conversationId: PROACTIVE_CONVERSATION_ID,
+      message: PROACTIVE_TRIGGER_MESSAGE,
+      systemMessage,
+      loadFromPersistence: true,
+      messageMeta: {
+        isSystemTrigger: true,
+        triggerSource: 'manual_stream'
+      },
+      userLogMeta: {
+        proactive: true,
+        isSystemTrigger: true,
+        triggerSource: 'manual_stream'
+      },
+      assistantLogMeta: {
+        proactive: true,
+        source: 'manual_stream'
+      },
+      toolLogMeta: {
+        proactive: true,
+        source: 'manual_stream'
+      },
+      systemLogMeta: {
+        proactive: true,
+        source: 'proactive_base'
+      },
+      compressionLogMeta: {
+        proactive: true,
+        source: 'compression_summary'
+      },
+      onEvent: (event) => {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
-
-        // If the event is done, end the stream
-        if (event.type === 'done') {
-          res.end();
-          break;
-        }
-      } catch (err) {
-        // Client may have disconnected
-        logger.warn('Client disconnected from proactive stream');
-        break;
       }
-    }
+    });
+
+    proactiveScheduler.markManualTrigger();
+    res.end();
   } catch (error) {
     logger.error('Proactive streaming failed', error);
 
