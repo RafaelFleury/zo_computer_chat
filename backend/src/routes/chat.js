@@ -672,6 +672,73 @@ router.get('/conversations/:id', (req, res) => {
   }
 });
 
+// GET /api/chat/conversations/:id/context - Get entire context sent to the model
+// Returns the exact messages array (system + compression summary + conversation) passed to the LLM.
+router.get('/conversations/:id/context', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let conversation = conversations.get(id);
+    if (!conversation) {
+      try {
+        const { messages, metadata } = await chatPersistence.loadConversation(id);
+        const normalizedMessages = messages.map(msg => ({
+          role: msg.role,
+          content: msg.content || '',
+          ...(msg.toolCalls && { toolCalls: msg.toolCalls }),
+          ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
+          ...(msg.segments && { segments: msg.segments }),
+          ...(msg.role === 'tool' && msg.name && { name: msg.name, tool_call_id: msg.tool_call_id })
+        }));
+        conversations.set(id, normalizedMessages);
+        compressionMetadata.set(id, {
+          compressionSummary: metadata.compressionSummary || null,
+          compressedAt: metadata.compressedAt || null,
+          compressedMessageCount: metadata.compressedMessageCount || 0
+        });
+        touchConversation(id);
+        conversation = normalizedMessages;
+      } catch (loadErr) {
+        if (loadErr.message?.includes('not found') || loadErr.code === 'NOT_FOUND') {
+          return sendError(res, 404, 'Conversation not found');
+        }
+        throw loadErr;
+      }
+    } else {
+      touchConversation(id);
+    }
+
+    const compressionMeta = ensureCompressionMetadata(id);
+    const systemMessage = id === PROACTIVE_CONVERSATION_ID
+      ? proactivePersonaManager.getProactiveSystemMessage()
+      : personaManager.getSystemMessage();
+
+    const messagesForLLM = compressionService.buildCompressedContext(
+      conversation,
+      compressionMeta.compressionSummary,
+      compressionMeta.compressedMessageCount,
+      systemMessage
+    );
+
+    res.json({
+      description: 'Exact payload sent to the model: the "messages" parameter in the chat completion API request for this conversation.',
+      conversationId: id,
+      systemMessage,
+      compressionMeta: compressionMeta.compressionSummary
+        ? {
+            compressionSummary: compressionMeta.compressionSummary,
+            compressedAt: compressionMeta.compressedAt,
+            compressedMessageCount: compressionMeta.compressedMessageCount
+          }
+        : null,
+      messages: messagesForLLM
+    });
+  } catch (error) {
+    logger.error('Failed to get conversation context:', error);
+    sendError(res, 500, 'Failed to retrieve conversation context');
+  }
+});
+
 // DELETE /api/chat/conversations/:id - Delete conversation
 router.delete('/conversations/:id', (req, res) => {
   try {
