@@ -81,6 +81,17 @@ app.get('/api/tools', (req, res) => {
   res.json({ tools });
 });
 
+// Get the exact tools payload sent to the model (for inspection)
+// This is the same array passed as the "tools" parameter to the chat completion API.
+app.get('/api/tools/for-llm', (req, res) => {
+  const tools = zoMCP.getToolsForLLM();
+  res.json({
+    description: 'Exact payload sent to the model: the "tools" parameter in the chat completion API request. Built from zoMCP.getToolsForLLM().',
+    tool_choice: tools.length > 0 ? 'auto' : undefined,
+    tools
+  });
+});
+
 // Serve static files from frontend build (production mode)
 // __dirname is /backend/src, so go up one level to /backend then into /public
 const frontendPath = path.join(__dirname, '../public');
@@ -148,17 +159,29 @@ async function start() {
           parameters: {
             type: 'object',
             properties: {
+              title: {
+                type: 'string',
+                description: 'Short title for the memory (required). Should be concise and descriptive.'
+              },
+              description: {
+                type: 'string',
+                description: 'Optional brief description or summary of the memory content.'
+              },
               content: {
                 type: 'string',
-                description: 'The memory content to store. Be specific and concise.'
+                description: 'The full memory content to store. Be specific and include enough context.'
               },
-              category: {
+              type: {
                 type: 'string',
-                description: 'Optional category for the memory (e.g., "user_preference", "project_info", "personal_fact"). Default: "user"',
-                enum: ['user', 'user_preference', 'project_info', 'personal_fact', 'system', 'other']
+                description: 'Type of memory. Default: "system_instruction"',
+                enum: ['skill', 'new_insight', 'system_instruction', 'user_preference']
+              },
+              includeInSystemMessage: {
+                type: 'boolean',
+                description: 'Whether to include this memory in the system message for future conversations. Default: true'
               }
             },
-            required: ['content']
+            required: ['title', 'content']
           }
         }
       },
@@ -183,10 +206,31 @@ async function start() {
         type: 'function',
         function: {
           name: 'list_memories',
-          description: 'List all stored memories with their IDs, content, and metadata. Use this to see what information is currently stored.',
+          description: 'List all memories with summary information only (id, title, description, type, includeInSystemMessage). Does not return full content. Use get_memory to retrieve full content.',
           parameters: {
             type: 'object',
             properties: {},
+            required: []
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_memory',
+          description: 'Get a specific memory with full content by ID or title. Searches by ID first, then exact title match, then case-insensitive title match.',
+          parameters: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'The ID of the memory to retrieve'
+              },
+              title: {
+                type: 'string',
+                description: 'The title of the memory to retrieve (used if id not provided)'
+              }
+            },
             required: []
           }
         }
@@ -197,7 +241,13 @@ async function start() {
 
     // Register custom tool handlers in LLM client
     llmClient.registerCustomToolHandler('add_memory', async (args) => {
-      const result = await memoryManager.addMemory(args.content, args.category || 'user');
+      const result = await memoryManager.addMemory(
+        args.title,
+        args.description || '',
+        args.content,
+        args.type || 'system_instruction',
+        args.includeInSystemMessage !== undefined ? args.includeInSystemMessage : true
+      );
       return {
         content: [{
           type: 'text',
@@ -222,16 +272,50 @@ async function start() {
 
     llmClient.registerCustomToolHandler('list_memories', async () => {
       const memories = memoryManager.getMemories();
-      const memoryList = memories.map(m =>
-        `ID: ${m.id}\nCategory: ${m.category}\nContent: ${m.content}\nCreated: ${m.createdAt}\n`
-      ).join('\n---\n');
+      const memoryList = memories.map(m => ({
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        type: m.type,
+        includeInSystemMessage: m.includeInSystemMessage
+      }));
 
       return {
         content: [{
           type: 'text',
           text: memories.length > 0
-            ? `Found ${memories.length} memories:\n\n${memoryList}`
+            ? `Found ${memories.length} memories:\n\n${JSON.stringify(memoryList, null, 2)}`
             : 'No memories stored yet.'
+        }]
+      };
+    });
+
+    llmClient.registerCustomToolHandler('get_memory', async (args) => {
+      const memory = memoryManager.getMemoryByIdOrTitle(args.id, args.title);
+
+      if (!memory) {
+        return {
+          content: [{
+            type: 'text',
+            text: 'Memory not found.'
+          }]
+        };
+      }
+
+      if (memory.error) {
+        // Multiple matches case
+        return {
+          content: [{
+            type: 'text',
+            text: `${memory.error}:\n${JSON.stringify(memory.matches, null, 2)}\n\nPlease specify the ID to get the exact memory.`
+          }]
+        };
+      }
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Memory found:\n\nID: ${memory.id}\nTitle: ${memory.title}\nDescription: ${memory.description || '(none)'}\nType: ${memory.type}\nInclude in System: ${memory.includeInSystemMessage}\nContent: ${memory.content}\nCreated: ${memory.createdAt}\nUpdated: ${memory.updatedAt || '(never)'}`
         }]
       };
     });

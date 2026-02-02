@@ -1,5 +1,6 @@
 import { zoMCP } from './mcpClient.js';
 import { logger } from '../utils/logger.js';
+import memoryMigration from './memoryMigration.js';
 
 class MemoryManager {
   constructor() {
@@ -52,8 +53,36 @@ class MemoryManager {
           }
         }
 
-        this.memories = memoriesData.memories || [];
-        logger.info(`Loaded ${this.memories.length} memories from memories.json`);
+        // Check if migration is needed and perform it
+        const migrationResult = memoryMigration.migrateMemoriesData(memoriesData);
+
+        if (migrationResult.migrated) {
+          logger.info(`Migrating ${migrationResult.count} memories to new format...`);
+
+          // Create backup before migration
+          try {
+            const backupFile = `${this.memoriesFile}.backup.pre-v2`;
+            await zoMCP.callTool('create_or_rewrite_file', {
+              target_file: backupFile,
+              content: JSON.stringify(memoriesData, null, 2)
+            });
+            logger.info(`Backup created at ${backupFile}`);
+          } catch (backupError) {
+            logger.warn('Failed to create backup:', backupError);
+          }
+
+          // Save migrated data
+          this.memories = migrationResult.data.memories || [];
+          await this.saveMemories();
+
+          logger.info('Migration completed successfully');
+          migrationResult.details.forEach(detail => {
+            logger.debug(`Migrated memory ${detail.id}: "${detail.title}" (${detail.oldCategory || 'none'} -> ${detail.newType})`);
+          });
+        } else {
+          this.memories = memoriesData.memories || [];
+          logger.info(`Loaded ${this.memories.length} memories from memories.json (no migration needed)`);
+        }
       } catch (readError) {
         // File doesn't exist or is invalid, create default
         logger.info('memories.json not found, creating default...');
@@ -71,12 +100,14 @@ class MemoryManager {
     return [
       {
         id: 'default-001',
+        title: 'Memory Management Capability',
+        description: 'Core instruction about ability to manage memories for user preferences and context',
         content: 'You have the ability to manage your own memories. You can add new memories when users share important information that should be remembered for future conversations, such as preferences, facts about themselves, project details, or any other context that would be helpful to recall later. You can also remove memories that become outdated or irrelevant. When adding a memory, be concise but include enough context to be useful later. When users explicitly ask you to remember something, always add it to your memories.',
+        type: 'system_instruction',
+        includeInSystemMessage: true,
         createdAt: new Date().toISOString(),
-        category: 'system',
         metadata: {
-          isDefault: true,
-          description: 'Core instruction about memory management capabilities'
+          isDefault: true
         }
       }
     ];
@@ -113,35 +144,48 @@ class MemoryManager {
   }
 
   // Format memories as a string for inclusion in system message
+  // Only includes memories where includeInSystemMessage !== false
   getMemoriesAsText() {
     if (!this.memories || this.memories.length === 0) {
       return '';
     }
 
-    const memoriesText = this.memories
+    // Filter memories to include only those with includeInSystemMessage !== false
+    const includedMemories = this.memories.filter(
+      memory => memory.includeInSystemMessage !== false
+    );
+
+    if (includedMemories.length === 0) {
+      return '';
+    }
+
+    const memoriesText = includedMemories
       .map((memory, index) => {
-        const categoryTag = memory.category ? `[${memory.category}]` : '';
-        return `${index + 1}. ${categoryTag} ${memory.content}`;
+        const typeTag = memory.type ? `[${memory.type}]` : '';
+        return `${index + 1}. ${typeTag} ${memory.content}`;
       })
       .join('\n');
 
     return `\n\n=== YOUR MEMORIES ===\n${memoriesText}\n=== END MEMORIES ===`;
   }
 
-  async addMemory(content, category = 'user', metadata = {}) {
+  async addMemory(title, description = '', content, type = 'system_instruction', includeInSystemMessage = true, metadata = {}) {
     try {
       const newMemory = {
         id: `memory-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title,
+        description,
         content,
+        type,
+        includeInSystemMessage,
         createdAt: new Date().toISOString(),
-        category,
         metadata
       };
 
       this.memories.push(newMemory);
       await this.saveMemories();
 
-      logger.info('Memory added successfully', { id: newMemory.id, category });
+      logger.info('Memory added successfully', { id: newMemory.id, title, type });
       return { success: true, memory: newMemory };
     } catch (error) {
       logger.error('Failed to add memory:', error);
@@ -177,8 +221,11 @@ class MemoryManager {
       }
 
       // Update allowed fields
+      if (updates.title !== undefined) memory.title = updates.title;
+      if (updates.description !== undefined) memory.description = updates.description;
       if (updates.content !== undefined) memory.content = updates.content;
-      if (updates.category !== undefined) memory.category = updates.category;
+      if (updates.type !== undefined) memory.type = updates.type;
+      if (updates.includeInSystemMessage !== undefined) memory.includeInSystemMessage = updates.includeInSystemMessage;
       if (updates.metadata !== undefined) {
         memory.metadata = { ...memory.metadata, ...updates.metadata };
       }
@@ -260,16 +307,49 @@ class MemoryManager {
 
   async clearAllMemories() {
     try {
-      // Keep only system/default memories
-      this.memories = this.memories.filter(m => m.category === 'system' && m.metadata?.isDefault);
+      // Keep only default memories
+      this.memories = this.memories.filter(m => m.metadata?.isDefault);
       await this.saveMemories();
 
-      logger.info('All user memories cleared, system memories retained');
+      logger.info('All user memories cleared, default memories retained');
       return { success: true };
     } catch (error) {
       logger.error('Failed to clear memories:', error);
       return { success: false, error: error.message };
     }
+  }
+
+  // Get memory by ID or title
+  getMemoryByIdOrTitle(id, title) {
+    if (id) {
+      return this.memories.find(m => m.id === id);
+    }
+
+    if (title) {
+      // Try exact match first
+      const exactMatch = this.memories.find(m => m.title === title);
+      if (exactMatch) {
+        return exactMatch;
+      }
+
+      // Try case-insensitive match
+      const lowerTitle = title.toLowerCase();
+      const matches = this.memories.filter(m => m.title.toLowerCase() === lowerTitle);
+
+      if (matches.length === 1) {
+        return matches[0];
+      }
+
+      if (matches.length > 1) {
+        // Multiple matches - return error object
+        return {
+          error: 'Multiple memories found with similar titles',
+          matches: matches.map(m => ({ id: m.id, title: m.title }))
+        };
+      }
+    }
+
+    return null;
   }
 }
 

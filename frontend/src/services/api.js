@@ -169,11 +169,11 @@ export const api = {
     return response.json(); // Returns { memories: [...] }
   },
 
-  async addMemory(content, category = 'user', metadata = {}) {
+  async addMemory(title, description = '', content, type = 'system_instruction', includeInSystemMessage = true, metadata = {}) {
     const response = await fetch(`${API_URL}/api/chat/memories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content, category, metadata }),
+      body: JSON.stringify({ title, description, content, type, includeInSystemMessage, metadata }),
     });
     if (!response.ok) throw new Error('Failed to add memory');
     return response.json(); // Returns { message, memory: {...} }

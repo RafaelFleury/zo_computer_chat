@@ -921,13 +921,27 @@ router.get('/memories', (req, res) => {
 // POST /api/chat/memories - Add a new memory
 router.post('/memories', async (req, res) => {
   try {
-    const { content, category = 'user', metadata = {} } = req.body;
+    const {
+      title,
+      description = '',
+      content,
+      type = 'system_instruction',
+      includeInSystemMessage = true,
+      metadata = {}
+    } = req.body;
 
-    if (!content) {
-      return sendError(res, 400, 'Memory content is required');
+    if (!title || !content) {
+      return sendError(res, 400, 'Memory title and content are required');
     }
 
-    const result = await memoryManager.addMemory(content, category, metadata);
+    const result = await memoryManager.addMemory(
+      title,
+      description,
+      content,
+      type,
+      includeInSystemMessage,
+      metadata
+    );
 
     if (result.success) {
       res.json({ message: 'Memory added successfully', memory: result.memory });
@@ -961,11 +975,14 @@ router.delete('/memories/:id', async (req, res) => {
 router.put('/memories/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { content, category, metadata } = req.body;
+    const { title, description, content, type, includeInSystemMessage, metadata } = req.body;
 
     const updates = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
     if (content !== undefined) updates.content = content;
-    if (category !== undefined) updates.category = category;
+    if (type !== undefined) updates.type = type;
+    if (includeInSystemMessage !== undefined) updates.includeInSystemMessage = includeInSystemMessage;
     if (metadata !== undefined) updates.metadata = metadata;
 
     const result = await memoryManager.updateMemory(id, updates);

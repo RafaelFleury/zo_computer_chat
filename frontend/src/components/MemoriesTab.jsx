@@ -2,13 +2,11 @@ import { useState, useEffect } from "react";
 import { api } from "../services/api";
 import "./MemoriesTab.css";
 
-const CATEGORIES = [
-  { value: "user", label: "User" },
+const TYPES = [
+  { value: "skill", label: "Skill" },
+  { value: "new_insight", label: "New Insight" },
+  { value: "system_instruction", label: "System Instruction" },
   { value: "user_preference", label: "User Preference" },
-  { value: "project_info", label: "Project Info" },
-  { value: "personal_fact", label: "Personal Fact" },
-  { value: "system", label: "System" },
-  { value: "other", label: "Other" },
 ];
 
 function MemoriesTab() {
@@ -18,16 +16,22 @@ function MemoriesTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [addingNew, setAddingNew] = useState(false);
   const [newMemory, setNewMemory] = useState({
+    title: "",
+    description: "",
     content: "",
-    category: "user",
+    type: "system_instruction",
+    includeInSystemMessage: true,
   });
   const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
     content: "",
-    category: "",
+    type: "",
+    includeInSystemMessage: true,
   });
 
   // Load memories from API
@@ -60,6 +64,10 @@ function MemoriesTab() {
 
   // Handle add new memory
   const handleAddMemory = () => {
+    if (!newMemory.title.trim()) {
+      setError("Memory title cannot be empty");
+      return;
+    }
     if (!newMemory.content.trim()) {
       setError("Memory content cannot be empty");
       return;
@@ -68,14 +76,23 @@ function MemoriesTab() {
     const tempId = `temp-${Date.now()}`;
     const memory = {
       id: tempId,
+      title: newMemory.title.trim(),
+      description: newMemory.description.trim(),
       content: newMemory.content.trim(),
-      category: newMemory.category,
+      type: newMemory.type,
+      includeInSystemMessage: newMemory.includeInSystemMessage,
       createdAt: new Date().toISOString(),
       metadata: {},
     };
 
     setLocalMemories([...localMemories, memory]);
-    setNewMemory({ content: "", category: "user" });
+    setNewMemory({
+      title: "",
+      description: "",
+      content: "",
+      type: "system_instruction",
+      includeInSystemMessage: true,
+    });
     setAddingNew(false);
   };
 
@@ -83,17 +100,30 @@ function MemoriesTab() {
   const startEdit = (memory) => {
     setEditingId(memory.id);
     setEditForm({
+      title: memory.title,
+      description: memory.description || "",
       content: memory.content,
-      category: memory.category,
+      type: memory.type,
+      includeInSystemMessage: memory.includeInSystemMessage !== false,
     });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditForm({ content: "", category: "" });
+    setEditForm({
+      title: "",
+      description: "",
+      content: "",
+      type: "",
+      includeInSystemMessage: true,
+    });
   };
 
   const saveEdit = () => {
+    if (!editForm.title.trim()) {
+      setError("Memory title cannot be empty");
+      return;
+    }
     if (!editForm.content.trim()) {
       setError("Memory content cannot be empty");
       return;
@@ -104,28 +134,37 @@ function MemoriesTab() {
         m.id === editingId
           ? {
               ...m,
+              title: editForm.title.trim(),
+              description: editForm.description.trim(),
               content: editForm.content.trim(),
-              category: editForm.category,
+              type: editForm.type,
+              includeInSystemMessage: editForm.includeInSystemMessage,
               updatedAt: new Date().toISOString(),
             }
           : m
       )
     );
     setEditingId(null);
-    setEditForm({ content: "", category: "" });
+    setEditForm({
+      title: "",
+      description: "",
+      content: "",
+      type: "",
+      includeInSystemMessage: true,
+    });
   };
 
   // Handle delete memory
   const handleDeleteMemory = (memory) => {
-    // Block deletion of system memories
-    if (memory.category === "system" && memory.metadata?.isDefault) {
-      setError("Cannot delete system memories");
+    // Block deletion of default memories
+    if (memory.metadata?.isDefault) {
+      setError("Cannot delete default memories");
       return;
     }
 
     if (
       !confirm(
-        `Are you sure you want to delete this memory?\n\n"${memory.content.substring(0, 100)}..."`
+        `Are you sure you want to delete this memory?\n\n"${memory.title}"`
       )
     ) {
       return;
@@ -152,18 +191,16 @@ function MemoriesTab() {
     setError(null);
 
     try {
-      // Identify deletions (in cloud but not in local, excluding system)
+      // Identify deletions (in cloud but not in local, excluding default)
       const localIds = new Set(localMemories.map((m) => m.id));
       const toDelete = cloudMemories.filter(
-        (m) =>
-          !localIds.has(m.id) &&
-          !(m.category === "system" && m.metadata?.isDefault)
+        (m) => !localIds.has(m.id) && !m.metadata?.isDefault
       );
 
       // Identify additions (temp IDs)
       const toAdd = localMemories.filter((m) => m.id.startsWith("temp-"));
 
-      // Identify updates (different content/category/metadata)
+      // Identify updates (different content/fields)
       const toUpdate = localMemories.filter((m) => {
         if (m.id.startsWith("temp-")) return false;
         const cloudVersion = cloudMemories.find((cm) => cm.id === m.id);
@@ -177,13 +214,23 @@ function MemoriesTab() {
       }
 
       for (const memory of toAdd) {
-        await api.addMemory(memory.content, memory.category, memory.metadata);
+        await api.addMemory(
+          memory.title,
+          memory.description,
+          memory.content,
+          memory.type,
+          memory.includeInSystemMessage,
+          memory.metadata
+        );
       }
 
       for (const memory of toUpdate) {
         await api.updateMemory(memory.id, {
+          title: memory.title,
+          description: memory.description,
           content: memory.content,
-          category: memory.category,
+          type: memory.type,
+          includeInSystemMessage: memory.includeInSystemMessage,
           metadata: memory.metadata,
         });
       }
@@ -197,11 +244,11 @@ function MemoriesTab() {
     }
   };
 
-  // Filter memories by category
+  // Filter memories by type
   const filteredMemories =
-    categoryFilter === "all"
+    typeFilter === "all"
       ? localMemories
-      : localMemories.filter((m) => m.category === categoryFilter);
+      : localMemories.filter((m) => m.type === typeFilter);
 
   // Format timestamp
   const formatTimestamp = (timestamp) => {
@@ -230,14 +277,14 @@ function MemoriesTab() {
 
           <select
             className="filter-select"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
             disabled={isSaving}
           >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat.value} value={cat.value}>
-                {cat.label}
+            <option value="all">All Types</option>
+            {TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
               </option>
             ))}
           </select>
@@ -268,29 +315,60 @@ function MemoriesTab() {
           <div className="memory-item add-memory-form">
             <div className="memory-header">
               <select
-                className="category-select"
-                value={newMemory.category}
+                className="type-select"
+                value={newMemory.type}
                 onChange={(e) =>
-                  setNewMemory({ ...newMemory, category: e.target.value })
+                  setNewMemory({ ...newMemory, type: e.target.value })
                 }
               >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
+                {TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
                   </option>
                 ))}
               </select>
             </div>
+            <input
+              type="text"
+              className="memory-title-input"
+              value={newMemory.title}
+              onChange={(e) =>
+                setNewMemory({ ...newMemory, title: e.target.value })
+              }
+              placeholder="Memory title (required)"
+              autoFocus
+            />
+            <input
+              type="text"
+              className="memory-description-input"
+              value={newMemory.description}
+              onChange={(e) =>
+                setNewMemory({ ...newMemory, description: e.target.value })
+              }
+              placeholder="Brief description (optional)"
+            />
             <textarea
               className="memory-content-edit"
               value={newMemory.content}
               onChange={(e) =>
                 setNewMemory({ ...newMemory, content: e.target.value })
               }
-              placeholder="Enter memory content..."
+              placeholder="Full memory content (required)"
               rows={3}
-              autoFocus
             />
+            <label className="memory-toggle">
+              <input
+                type="checkbox"
+                checked={newMemory.includeInSystemMessage}
+                onChange={(e) =>
+                  setNewMemory({
+                    ...newMemory,
+                    includeInSystemMessage: e.target.checked,
+                  })
+                }
+              />
+              <span>Include in system message</span>
+            </label>
             <div className="memory-actions">
               <button className="action-cancel" onClick={() => setAddingNew(false)}>
                 Cancel
@@ -310,9 +388,9 @@ function MemoriesTab() {
         {/* Empty state */}
         {!isLoading && filteredMemories.length === 0 && (
           <div className="empty-state">
-            {categoryFilter === "all"
+            {typeFilter === "all"
               ? "No memories found. Click '+ Add Memory' to create one."
-              : `No memories found in category '${CATEGORIES.find((c) => c.value === categoryFilter)?.label}'.`}
+              : `No memories found of type '${TYPES.find((t) => t.value === typeFilter)?.label}'.`}
           </div>
         )}
 
@@ -320,33 +398,33 @@ function MemoriesTab() {
         {!isLoading &&
           filteredMemories.map((memory) => {
             const isEditing = editingId === memory.id;
-            const isSystem = memory.category === "system" && memory.metadata?.isDefault;
+            const isDefault = memory.metadata?.isDefault;
 
             return (
               <div
                 key={memory.id}
-                className={`memory-item category-${memory.category}`}
+                className={`memory-item type-${memory.type}`}
               >
                 <div className="memory-header">
                   {isEditing ? (
                     <select
-                      className="category-select"
-                      value={editForm.category}
+                      className="type-select"
+                      value={editForm.type}
                       onChange={(e) =>
-                        setEditForm({ ...editForm, category: e.target.value })
+                        setEditForm({ ...editForm, type: e.target.value })
                       }
-                      disabled={isSystem}
+                      disabled={isDefault}
                     >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.label}
+                      {TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <span className="memory-category">
-                      {CATEGORIES.find((c) => c.value === memory.category)
-                        ?.label || memory.category}
+                    <span className="memory-type">
+                      {TYPES.find((t) => t.value === memory.type)?.label ||
+                        memory.type}
                     </span>
                   )}
                   <span className="memory-timestamp">
@@ -355,16 +433,62 @@ function MemoriesTab() {
                 </div>
 
                 {isEditing ? (
-                  <textarea
-                    className="memory-content-edit"
-                    value={editForm.content}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, content: e.target.value })
-                    }
-                    rows={3}
-                  />
+                  <>
+                    <input
+                      type="text"
+                      className="memory-title-input"
+                      value={editForm.title}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, title: e.target.value })
+                      }
+                      placeholder="Memory title (required)"
+                    />
+                    <input
+                      type="text"
+                      className="memory-description-input"
+                      value={editForm.description}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, description: e.target.value })
+                      }
+                      placeholder="Brief description (optional)"
+                    />
+                    <textarea
+                      className="memory-content-edit"
+                      value={editForm.content}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, content: e.target.value })
+                      }
+                      rows={3}
+                    />
+                    <label className="memory-toggle">
+                      <input
+                        type="checkbox"
+                        checked={editForm.includeInSystemMessage}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            includeInSystemMessage: e.target.checked,
+                          })
+                        }
+                      />
+                      <span>Include in system message</span>
+                    </label>
+                  </>
                 ) : (
-                  <div className="memory-content">{memory.content}</div>
+                  <>
+                    <div className="memory-title">{memory.title}</div>
+                    {memory.description && (
+                      <div className="memory-description">
+                        {memory.description}
+                      </div>
+                    )}
+                    <div className="memory-content">{memory.content}</div>
+                    {!memory.includeInSystemMessage && (
+                      <div className="memory-excluded-badge">
+                        Not included in system
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="memory-actions">
@@ -389,10 +513,10 @@ function MemoriesTab() {
                       <button
                         className="action-delete"
                         onClick={() => handleDeleteMemory(memory)}
-                        disabled={isSystem || isSaving}
+                        disabled={isDefault || isSaving}
                         title={
-                          isSystem
-                            ? "Cannot delete system memories"
+                          isDefault
+                            ? "Cannot delete default memories"
                             : "Delete memory"
                         }
                       >
