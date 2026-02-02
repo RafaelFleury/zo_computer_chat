@@ -3,18 +3,15 @@ import { showToast } from './Toast';
 import { API_URL } from '../services/api';
 import './ChatHistory.css';
 
-const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation, onToggle }, ref) => {
+const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, onNewConversation, onToggle, isOpen }, ref) => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isOpen, setIsOpen] = useState(true);
 
   // Notify parent when sidebar toggles
   const handleToggle = () => {
-    const newState = !isOpen;
-    setIsOpen(newState);
     if (onToggle) {
-      onToggle(newState);
+      onToggle(!isOpen);
     }
   };
 
@@ -94,6 +91,11 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
           compressedMessageCount: data.compressedMessageCount || 0
         };
         onSelectConversation(conversationId, data.messages, data.usage, compressionInfo);
+
+        // Close sidebar on mobile after selecting conversation
+        if (window.innerWidth <= 768 && onToggle) {
+          onToggle(false);
+        }
       }
     } catch (err) {
       console.error('Failed to load conversation:', err);
@@ -160,14 +162,46 @@ const ChatHistory = forwardRef(({ currentConversationId, onSelectConversation, o
 
   return (
     <div className={`chat-history ${isOpen ? 'open' : 'closed'}`}>
-      <div className="chat-history-toggle" onClick={handleToggle}>
-        <span className="toggle-icon">{isOpen ? '←' : '→'}</span>
+      {/* Minimal sidebar - always visible on desktop */}
+      <div className="chat-history-minimal">
+        <button
+          className="minimal-toggle"
+          onClick={handleToggle}
+          title={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          <span className="minimal-icon">☰</span>
+        </button>
+        <button
+          className="minimal-btn"
+          onClick={onNewConversation}
+          title="New conversation"
+        >
+          +
+        </button>
+        <button
+          className="minimal-btn"
+          onClick={loadConversations}
+          disabled={loading}
+          title="Refresh history"
+        >
+          ↻
+        </button>
       </div>
 
+      {/* Expanded sidebar content */}
       {isOpen && (
         <div className="chat-history-content">
           <div className="chat-history-header">
-            <h3>Conversations</h3>
+            <div className="header-top">
+              <h3>Conversations</h3>
+              <button
+                className="close-btn-mobile"
+                onClick={handleToggle}
+                title="Close sidebar"
+              >
+                ×
+              </button>
+            </div>
             <div className="header-buttons">
               <button
                 className="refresh-btn"

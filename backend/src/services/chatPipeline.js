@@ -147,11 +147,14 @@ export async function runChatCompletion({
   const response = await llmClient.chat(
     conversationForLLM,
     (toolCallData) => {
-      addLog('tool_call', {
-        ...toolCallData,
-        conversationId,
-        ...toolLogMeta
-      });
+      // Only log tool call when completed or failed (not intermediate statuses)
+      if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+        addLog('tool_call', {
+          ...toolCallData,
+          conversationId,
+          ...toolLogMeta
+        });
+      }
       toolCalls.push(toolCallData);
 
       const existingIndex = segments.findIndex(
@@ -344,11 +347,14 @@ export async function runChatStream({
       });
     },
     (toolCallData) => {
-      addLog('tool_call', {
-        ...toolCallData,
-        conversationId,
-        ...toolLogMeta
-      });
+      // Only log tool call when completed or failed (not intermediate statuses)
+      if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+        addLog('tool_call', {
+          ...toolCallData,
+          conversationId,
+          ...toolLogMeta
+        });
+      }
       toolCalls.push(toolCallData);
 
       const existingIndex = segments.findIndex(

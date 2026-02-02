@@ -152,12 +152,15 @@ export async function runProactiveTrigger({ source = 'scheduled' } = {}) {
 
   const toolCalls = [];
   const response = await llmClient.chat(conversationForLLM, (toolCallData) => {
-    addLog('tool_call', {
-      ...toolCallData,
-      conversationId,
-      proactive: true,
-      source
-    });
+    // Only log tool call when completed or failed (not intermediate statuses)
+    if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+      addLog('tool_call', {
+        ...toolCallData,
+        conversationId,
+        proactive: true,
+        source
+      });
+    }
     toolCalls.push(toolCallData);
   });
 
@@ -314,12 +317,15 @@ export async function* runProactiveTriggerStream({ source = 'scheduled' } = {}) 
       assistantMessage += chunk.content;
     },
     (toolCallData) => {
-      addLog('tool_call', {
-        ...toolCallData,
-        conversationId,
-        proactive: true,
-        source
-      });
+      // Only log tool call when completed or failed (not intermediate statuses)
+      if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+        addLog('tool_call', {
+          ...toolCallData,
+          conversationId,
+          proactive: true,
+          source
+        });
+      }
       toolCalls.push(toolCallData);
 
       // Track tool call segments

@@ -99,7 +99,7 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: calc(var(--vh, 1vh) * 100);
   width: 100vw;
   position: relative;
   transition:
@@ -108,13 +108,13 @@ body {
 }
 
 .app.sidebar-open {
-  margin-left: 220px;
-  width: calc(100vw - 220px);
+  margin-left: 280px; /* 60px minimal + 220px expanded */
+  width: calc(100vw - 280px);
 }
 
 .app.sidebar-closed {
-  margin-left: 0;
-  width: 100vw;
+  margin-left: 60px; /* minimal sidebar always visible */
+  width: calc(100vw - 60px);
 }
 
 /* Security Warning Banner - Removed, using Toast instead */
@@ -163,6 +163,58 @@ body {
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+/* Mobile sidebar toggle button */
+.sidebar-toggle-mobile {
+  display: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: var(--space-sm);
+}
+
+.sidebar-toggle-mobile:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.sidebar-toggle-mobile:active {
+  transform: scale(0.95);
+}
+
+/* Sidebar backdrop for mobile */
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 /* Tab Content */
@@ -224,13 +276,58 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
   .app.sidebar-open {
-    margin-left: 0;
-    width: 100vw;
+    margin-left: 0 !important;
+    width: 100vw !important;
   }
 
   .app.sidebar-closed {
-    margin-left: 0;
-    width: 100vw;
+    margin-left: 0 !important;
+    width: 100vw !important;
+  }
+
+  .sidebar-toggle-mobile {
+    display: flex;
+  }
+
+  .tabs {
+    overflow-x: auto;
+    gap: var(--space-sm);
+    padding: 0 var(--space-sm);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    font-size: var(--text-sm);
+    padding: 0 var(--space-sm);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .tab:active {
+    transform: scale(0.97);
+  }
+
+  .connection-status {
+    flex-shrink: 0;
+    margin-right: var(--space-sm);
+  }
+
+  /* Ensure minimum touch target size for all buttons */
+  button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Touch feedback for interactive elements */
+  button:active,
+  .conversation-item:active {
+    transform: scale(0.97);
   }
 }
 

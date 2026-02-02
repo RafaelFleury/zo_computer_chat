@@ -81,6 +81,11 @@ export default function ToolCallSegment({
   const [expanded, setExpanded] = useState(false);
 
   const getStatusIcon = () => {
+    // Check for error conditions first
+    if (error || success === false) {
+      return <FailedIcon />;
+    }
+
     switch (status) {
       case "loading":
       case "starting":
@@ -96,18 +101,31 @@ export default function ToolCallSegment({
   };
 
   const getStatusClass = () => {
+    // Check for error conditions first
+    if (error || success === false) {
+      return "failed";
+    }
+
     switch (status) {
       case "loading":
       case "starting":
       case "executing":
         return "loading";
       case "completed":
-        return success !== false ? "completed" : "failed";
+        return "completed";
       case "failed":
         return "failed";
       default:
         return "loading";
     }
+  };
+
+  const getStatusText = () => {
+    // Check for error conditions first
+    if (error || success === false) {
+      return "failed";
+    }
+    return status;
   };
 
   return (
@@ -119,7 +137,7 @@ export default function ToolCallSegment({
       >
         <div className="tool-call-status-icon">{getStatusIcon()}</div>
         <span className="tool-call-name">{toolName}</span>
-        <span className="tool-call-status-text">{status}</span>
+        <span className="tool-call-status-text">{getStatusText()}</span>
         {status !== "loading" && status !== "starting" && status !== "executing" && (
           <span className="expand-indicator">{expanded ? "▼" : "▶"}</span>
         )}

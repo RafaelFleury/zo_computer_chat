@@ -304,15 +304,31 @@ function App() {
 
       {/* Security Warning - Removed banner, will show as Toast on first load if needed */}
 
+      {/* Mobile backdrop for sidebar */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       <ChatHistory
         ref={chatHistoryRef}
         currentConversationId={conversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
         onToggle={setSidebarOpen}
+        isOpen={sidebarOpen}
       />
 
       <div className="tabs">
+        <button
+          className="sidebar-toggle-mobile"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          aria-label="Toggle sidebar"
+        >
+          ☰
+        </button>
         <button
           className={`tab ${activeTab === "chat" ? "active" : ""}`}
           onClick={() => {
