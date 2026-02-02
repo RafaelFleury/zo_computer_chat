@@ -183,8 +183,10 @@ router.post('/', async (req, res) => {
     const response = await llmClient.chat(
       conversationForLLM,
       (toolCallData) => {
-        // Log tool call
-        addLog('tool_call', toolCallData);
+        // Only log tool call when completed or failed (not intermediate statuses)
+        if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+          addLog('tool_call', toolCallData);
+        }
         toolCalls.push(toolCallData);
 
         // Build segments for non-streaming (simpler: just add tool calls as they complete)
@@ -464,8 +466,10 @@ router.post('/stream', async (req, res) => {
         }
       },
       (toolCallData) => {
-        // Log tool call
-        addLog('tool_call', toolCallData);
+        // Only log tool call when completed or failed (not intermediate statuses)
+        if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
+          addLog('tool_call', toolCallData);
+        }
         toolCalls.push(toolCallData);
 
         // Track tool call segments
