@@ -18,7 +18,7 @@
     "glm"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "bcryptjs": "^3.0.3",

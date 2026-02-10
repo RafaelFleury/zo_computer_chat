@@ -46,7 +46,7 @@ Edit `backend/.env` and add your keys:
 ```env
 ZO_API_KEY=your_zo_api_key_here
 ZAI_API_KEY=your_zai_api_key_here
-MODEL_NAME=glm-4-flash
+MODEL_NAME=glm-4.7
 PORT=3001
 ```
 
@@ -80,11 +80,15 @@ npm run dev
 
 ## Step 5: Open the App
 
-Open your browser to [http://localhost:3000](http://localhost:3000)
+Open your browser to [http://localhost:5173](http://localhost:5173)
 
 You should see:
 - **Chat Tab**: Send messages to GLM-4.7 with Zo tools
+- **Proactive Tab**: Autonomous assistant mode that checks in periodically
+- **Face Tab**: Animated pixel face that reacts to the assistant's state
 - **Logs Tab**: Monitor all activity in real-time
+- **Memories Tab**: View and manage the assistant's persistent memories
+- **Settings Tab**: Configure proactive mode and other preferences
 
 ## First Chat
 
@@ -154,11 +158,11 @@ Try these example messages:
 
 Edit `MODEL_NAME` in `backend/.env`:
 
-- `glm-4-flash` - Fast and cost-effective (default)
-- `glm-4-plus` - Most capable
+- `glm-4.7` - Most capable (default)
+- `glm-4-flash` - Fast and cost-effective
+- `glm-4-plus` - High capability
 - `glm-4-air` - Balanced performance
 - `glm-4-long` - Extended context
-- `glm-4-flash-vision` - Vision capabilities
 
 ## Support
 

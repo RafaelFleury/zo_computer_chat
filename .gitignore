@@ -34,3 +34,10 @@ backend/data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Development artifacts
+plans/
+images_for_claude/
+facetime_project/
+todo.md
+proactivePlan.md

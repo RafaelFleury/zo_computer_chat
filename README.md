@@ -12,6 +12,9 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **Comprehensive Logging**: Detailed logs of all LLM requests, MCP tool calls, and system events
 - **Tool Visualization**: See which Zo tools are being used in real-time
 - **Token Tracking**: Monitor API usage and token consumption
+- **Proactive Mode**: Autonomous assistant that periodically checks in and performs tasks
+- **Context Compression**: Automatic conversation compression to handle long chats
+- **Animated Face**: Pixel art avatar that reacts to the assistant's state
 
 ## Architecture
 
@@ -38,17 +41,30 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 - **LLM Client** (`llmClient.js`): Handles GLM-4.7 API calls with function calling support
 - **Persona Manager** (`personaManager.js`): Loads and manages the system message from `initial_persona.json`
 - **Memory Manager** (`memoryManager.js`): Manages persistent memories that the assistant can add, update, and remove
+- **Chat Pipeline** (`chatPipeline.js`): Orchestrates the LLM + MCP tool execution flow
 - **Chat Persistence** (`chatPersistence.js`): SQLite-based conversation storage with transactions
 - **Database Manager** (`database.js`): Singleton SQLite connection with WAL mode
 - **Schema Service** (`schemaService.js`): Database schema initialization and migrations
-- **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, logs, and memories
+- **Compression Service** (`compressionService.js`): Automatic context compression for long conversations
+- **Proactive Service** (`proactiveService.js`): Autonomous mode that triggers the assistant periodically
+- **Proactive Scheduler** (`proactiveScheduler.js`): Timer-based scheduling for proactive triggers
+- **Settings Manager** (`settingsManager.js`): Persistent user settings storage
+- **Active Chat Manager** (`activeChatManager.js`): Global single-active-chat state across tabs
+- **Chat Routes** (`chat.js`): REST API endpoints for chat, conversations, logs, memories, settings, and proactive mode
 - **Logger** (`logger.js`): Winston-based logging with file rotation
 
 ### Frontend Components
 
 - **ChatInterface**: Main chat UI with message history and markdown rendering
+- **ProactiveTab**: Autonomous assistant mode interface
+- **FaceTimeView** / **PixelFace**: Animated pixel face that reacts to assistant state
+- **ChatHistory**: Sidebar with conversation list and management
+- **MemoriesTab**: View and manage persistent assistant memories
+- **SettingsTab**: Configure proactive mode and preferences
 - **LogsViewer**: Real-time activity logs with filtering and auto-refresh
-- **API Service**: Centralized API client for backend communication
+- **ToolCallSegment**: Expandable tool call visualization
+- **Toast**: Notification system
+- **API Service** (`api.js`): Centralized API client for backend communication
 
 ## Setup
 
@@ -96,7 +112,7 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
    NODE_ENV=development
 
    # Model Configuration
-   MODEL_NAME=glm-4-flash
+   MODEL_NAME=glm-4.7
 
    # API Endpoints (optional - defaults provided)
    ZO_MCP_URL=https://api.zo.computer/mcp
@@ -135,6 +151,9 @@ A powerful chatbot interface that combines **GLM-4.7** (via Z.AI) with **Zo Comp
 | `ZO_MCP_URL` | No | `https://api.zo.computer/mcp` | Zo Computer MCP server endpoint |
 | `ZAI_API_URL` | No | `https://api.z.ai/api/coding/paas/v4` | Z.AI API endpoint for LLM requests |
 | `DB_PATH` | No | `backend/data/zo_chat.db` | SQLite database path (relative to project root) |
+| `COMPRESSION_THRESHOLD` | No | `100000` | Token count at which automatic compression triggers |
+| `COMPRESSION_KEEP_RECENT` | No | `5` | Number of recent messages to keep uncompressed |
+| `CONVERSATION_TTL_HOURS` | No | `24` | Hours of inactivity before conversations are cleaned from memory |
 
 #### Frontend Environment Variables
 
@@ -239,7 +258,7 @@ The `start.sh` script will:
    npm run dev
    ```
 
-   The app will open at `http://localhost:3000`
+   The app will open at `http://localhost:5173`
 
 3. **To stop all processes**:
    ```bash
@@ -253,7 +272,6 @@ The `start.sh` script will:
    lsof -ti:3001 | xargs kill -9
 
    # Kill frontend
-   lsof -ti:3000 | xargs kill -9
    lsof -ti:5173 | xargs kill -9
    ```
 
@@ -305,11 +323,11 @@ The production build:
 
 You can change the model by updating `MODEL_NAME` in backend `.env`:
 
-- `glm-4-flash` - Fast, cost-effective (default)
-- `glm-4-plus` - Most capable model
+- `glm-4.7` - Most capable (default)
+- `glm-4-flash` - Fast and cost-effective
+- `glm-4-plus` - High capability
 - `glm-4-air` - Balanced performance
 - `glm-4-long` - Extended context window
-- `glm-4-flash-vision` - Vision capabilities
 
 See [Z.AI documentation](https://docs.z.ai/devpack/overview) for more details.
 
@@ -513,7 +531,15 @@ The assistant has access to three memory management tools:
 - `POST /api/chat/stream` - Stream chat response (SSE)
 - `GET /api/chat/conversations` - List all conversations
 - `GET /api/chat/conversations/:id` - Get conversation history
+- `GET /api/chat/conversations/:id/context` - Get conversation context and compression info
 - `DELETE /api/chat/conversations/:id` - Delete conversation
+
+### History
+
+- `GET /api/chat/history` - List conversation history (all conversations with metadata)
+- `GET /api/chat/history/:id` - Get full conversation history with messages
+- `POST /api/chat/history/new` - Create a new conversation
+- `DELETE /api/chat/history/:id` - Delete a conversation from history
 
 ### Persona
 
@@ -529,6 +555,24 @@ The assistant has access to three memory management tools:
 - `DELETE /api/chat/memories` - Clear all user memories (keeps system memories)
 - `POST /api/chat/memories/reload` - Reload memories from file
 
+### Compression
+
+- `GET /api/chat/compression/config` - Get compression configuration
+- `POST /api/chat/compress/:id` - Manually compress a conversation
+
+### Settings
+
+- `GET /api/chat/settings` - Get current settings
+- `PUT /api/chat/settings` - Update settings
+- `POST /api/chat/settings/reload` - Reload settings from storage
+- `POST /api/chat/settings/reset` - Reset settings to defaults
+
+### Proactive Mode
+
+- `GET /api/chat/proactive/status` - Get proactive mode status
+- `POST /api/chat/proactive/trigger` - Manually trigger proactive check
+- `POST /api/chat/proactive/stream` - Stream proactive chat response
+
 ### Logs
 
 - `GET /api/chat/logs?type=...&limit=100` - Get session logs
@@ -538,6 +582,7 @@ The assistant has access to three memory management tools:
 
 - `GET /health` - Health check and connection status
 - `GET /api/tools` - List available MCP tools
+- `GET /api/tools/for-llm` - List tools in OpenAI function calling format
 
 ## Logs
 
@@ -652,42 +697,58 @@ zo_computer_chat/
 ├── backend/
 │   ├── src/
 │   │   ├── routes/
-│   │   │   └── chat.js
+│   │   │   └── chat.js              # All API endpoints
 │   │   ├── services/
-│   │   │   ├── mcpClient.js
-│   │   │   ├── llmClient.js
-│   │   │   ├── personaManager.js
-│   │   │   ├── memoryManager.js
-│   │   │   ├── chatPersistence.js
-│   │   │   ├── database.js
-│   │   │   └── schemaService.js
+│   │   │   ├── mcpClient.js         # Zo MCP server connection
+│   │   │   ├── llmClient.js         # GLM-4.7 LLM integration
+│   │   │   ├── chatPipeline.js      # Chat processing orchestration
+│   │   │   ├── chatPersistence.js   # SQLite conversation storage
+│   │   │   ├── database.js          # SQLite connection manager
+│   │   │   ├── schemaService.js     # Database schema
+│   │   │   ├── personaManager.js    # System message management
+│   │   │   ├── memoryManager.js     # Persistent memory CRUD
+│   │   │   ├── memoryMigration.js   # Memory format migration
+│   │   │   ├── compressionService.js # Context compression
+│   │   │   ├── conversationStore.js # In-memory conversation state
+│   │   │   ├── proactiveService.js  # Autonomous mode logic
+│   │   │   ├── proactiveScheduler.js # Proactive trigger timer
+│   │   │   ├── proactivePersonaManager.js # Proactive system message
+│   │   │   ├── settingsManager.js   # User settings storage
+│   │   │   ├── activeChatManager.js # Global chat state
+│   │   │   └── logStore.js          # Session log storage
 │   │   ├── utils/
-│   │   │   └── logger.js
-│   │   └── index.js
+│   │   │   └── logger.js            # Winston logging
+│   │   └── index.js                 # Entry point
 │   ├── public/              # Frontend build output (production)
-│   ├── data/                # SQLite database storage
-│   │   ├── zo_chat.db
-│   │   ├── zo_chat.db-wal
-│   │   └── zo_chat.db-shm
-│   ├── logs/
+│   ├── data/                # SQLite database (gitignored)
+│   ├── logs/                # Application logs (gitignored)
 │   ├── package.json
-│   └── .env
+│   └── .env.example
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── ChatInterface.jsx
-│   │   │   ├── ChatInterface.css
-│   │   │   ├── LogsViewer.jsx
-│   │   │   └── LogsViewer.css
+│   │   │   ├── ChatInterface.jsx    # Main chat UI
+│   │   │   ├── ChatHistory.jsx      # Conversation sidebar
+│   │   │   ├── ProactiveTab.jsx     # Autonomous mode tab
+│   │   │   ├── FaceTimeView.jsx     # Face animation container
+│   │   │   ├── PixelFace.jsx        # Pixel art face component
+│   │   │   ├── MemoriesTab.jsx      # Memory management UI
+│   │   │   ├── SettingsTab.jsx      # Settings UI
+│   │   │   ├── LogsViewer.jsx       # Activity log viewer
+│   │   │   ├── ToolCallSegment.jsx  # Tool call visualization
+│   │   │   ├── SpeechBubble.jsx     # Assistant message bubble
+│   │   │   ├── UserInputBubble.jsx  # User message bubble
+│   │   │   ├── DraggableBubble.jsx  # Draggable overlay
+│   │   │   └── Toast.jsx            # Notifications
 │   │   ├── services/
-│   │   │   └── api.js
+│   │   │   └── api.js               # Backend API client
 │   │   ├── App.jsx
 │   │   ├── App.css
 │   │   └── main.jsx
 │   ├── index.html
 │   ├── vite.config.js       # Builds to ../backend/public
 │   ├── package.json
-│   └── .env
+│   └── .env.example
 ├── start.sh                 # Unified start script (dev/prod modes)
 ├── stop.sh                  # Stop all processes
 └── README.md
@@ -706,9 +767,13 @@ External (Zo filesystem - runtime-created):
 3. **New UI Component**: Add to `frontend/src/components/`
 4. **New Log Type**: Add to logger and update LogsViewer filters
 
+## Disclaimer
+
+This is a personal project. It is not accepting contributions, pull requests, or feature requests. You're welcome to fork it and adapt it for your own use.
+
 ## License
 
-MIT
+Apache License 2.0 - See [LICENSE](LICENSE) for details.
 
 ## Resources
 

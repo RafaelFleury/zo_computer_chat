@@ -9,7 +9,7 @@ This application creates a bridge between GLM-4.7 (via Z.AI) and Zo Computer's M
 ```
 User Input
     ↓
-React Frontend (Port 3000)
+React Frontend (Port 5173 dev / 3001 prod)
     ↓
     │ HTTP POST /api/chat
     ↓
@@ -47,10 +47,10 @@ Express Backend (Port 3001)
 #### 2. **MCP Client** (`mcpClient.js`)
 - **Purpose**: Manages connection to Zo Computer's MCP server
 - **Key Methods**:
-  - `connect()`: Establishes SSE connection with Bearer auth
+  - `connect()`: Establishes StreamableHTTP connection with Bearer auth
   - `callTool()`: Executes MCP tools with arguments
   - `getToolsForLLM()`: Converts MCP tool schemas to OpenAI function format
-- **Protocol**: HTTP with Server-Sent Events transport
+- **Protocol**: HTTP with StreamableHTTP transport
 - **Authentication**: Bearer token (Zo API key)
 
 #### 3. **LLM Client** (`llmClient.js`)
@@ -90,18 +90,38 @@ Express Backend (Port 3001)
   - `messages`: Full message history with JSON fields
 - **Indexes**: Optimized for common queries
 
-#### 7. **Chat Routes** (`chat.js`)
-- **Endpoints**:
-  - `POST /api/chat`: Standard chat completion
-  - `POST /api/chat/stream`: Streaming chat with SSE
-  - `GET /api/chat/conversations`: List conversations
-  - `GET /api/chat/conversations/:id`: Get conversation history
-  - `DELETE /api/chat/conversations/:id`: Delete conversation
-  - `GET /api/chat/logs`: Retrieve activity logs
-  - `DELETE /api/chat/logs`: Clear logs
+#### 7. **Chat Pipeline** (`chatPipeline.js`)
+- **Purpose**: Orchestrates the full chat processing flow
+- Coordinates LLM calls with MCP tool execution
+- Handles streaming responses with tool call interleaving
+- Manages compression triggers after responses
+
+#### 8. **Compression Service** (`compressionService.js`)
+- **Purpose**: Automatic context compression for long conversations
+- Summarizes old messages when token count exceeds threshold
+- Keeps recent messages uncompressed for context continuity
+- Configurable via `COMPRESSION_THRESHOLD` and `COMPRESSION_KEEP_RECENT`
+
+#### 9. **Proactive Service** (`proactiveService.js`)
+- **Purpose**: Autonomous assistant mode
+- Manages a dedicated "proactive" conversation
+- Triggered by scheduler at configurable intervals
+- Uses same chat pipeline as normal chat
+
+#### 10. **Settings Manager** (`settingsManager.js`)
+- **Purpose**: Persistent user settings storage
+- Stores proactive mode configuration, trigger intervals, etc.
+
+#### 11. **Active Chat Manager** (`activeChatManager.js`)
+- **Purpose**: Global single-active-chat state
+- Ensures only one chat can be active across all tabs/windows
+- Coordinates between normal chat and proactive mode
+
+#### 12. **Chat Routes** (`chat.js`)
+- **Endpoints**: Chat, streaming, conversations, history, memories, persona, compression, settings, proactive mode, and logs
 - **State Management**: SQLite database with persistent storage
 
-#### 8. **Logger** (`logger.js`)
+#### 13. **Logger** (`logger.js`)
 - **Purpose**: Comprehensive logging system
 - **Transports**:
   - Console (colored, formatted)
@@ -114,44 +134,44 @@ Express Backend (Port 3001)
 
 #### 1. **App** (`App.jsx`)
 - **Purpose**: Root component with tab navigation
-- **State**: Manages active tab (Chat vs Logs)
+- **Tabs**: Chat, Proactive, Face, Logs, Memories, Settings
+- **State**: Manages active tab, conversation state, streaming state, proactive mode state
 
 #### 2. **ChatInterface** (`ChatInterface.jsx`)
 - **Purpose**: Main chat UI
 - **Features**:
-  - Message input and display
-  - Markdown rendering with react-markdown
-  - Loading states and error handling
-  - Tool call visualization
+  - Message input and display with markdown rendering
+  - Streaming responses with real-time tool call visualization
+  - Conversation history sidebar (ChatHistory component)
   - Auto-scroll to latest message
-- **State**:
-  - `messages`: Array of chat messages
-  - `input`: Current user input
-  - `loading`: Request in progress
-  - `error`: Error messages
+  - Compression info display
 
-#### 3. **LogsViewer** (`LogsViewer.jsx`)
-- **Purpose**: Real-time activity monitoring
-- **Features**:
-  - Auto-refresh (configurable)
-  - Filter by log type
-  - Expandable tool call details
-  - Token usage tracking
-  - Error stack traces
-- **Log Types**:
-  - `user_message`: User inputs
-  - `assistant_message`: LLM responses
-  - `tool_call`: MCP tool executions
-  - `error`: System errors
+#### 3. **ProactiveTab** (`ProactiveTab.jsx`)
+- **Purpose**: Autonomous assistant mode interface
+- **Features**: View proactive conversation, configure triggers, manual trigger button
 
-#### 4. **API Service** (`api.js`)
-- **Purpose**: Centralized backend communication
-- **Methods**:
-  - `sendMessage()`: Standard POST request
-  - `streamMessage()`: Streaming with ReadableStream
-  - `getLogs()`: Fetch activity logs
-  - `getTools()`: List available MCP tools
-  - `healthCheck()`: Server status
+#### 4. **FaceTimeView / PixelFace** (`FaceTimeView.jsx`, `PixelFace.jsx`)
+- **Purpose**: Animated pixel art face that reacts to assistant state
+- **States**: Idle, talking, thinking — reflects current chat activity
+
+#### 5. **ChatHistory** (`ChatHistory.jsx`)
+- **Purpose**: Sidebar with conversation list
+- **Features**: Create, switch, delete conversations
+
+#### 6. **MemoriesTab** (`MemoriesTab.jsx`)
+- **Purpose**: View and manage persistent assistant memories
+
+#### 7. **SettingsTab** (`SettingsTab.jsx`)
+- **Purpose**: Configure proactive mode interval and other preferences
+
+#### 8. **LogsViewer** (`LogsViewer.jsx`)
+- **Purpose**: Real-time activity monitoring with filtering and auto-refresh
+
+#### 9. **ToolCallSegment** (`ToolCallSegment.jsx`)
+- **Purpose**: Expandable visualization of tool calls with JSON details
+
+#### 10. **API Service** (`api.js`)
+- **Purpose**: Centralized backend communication for all API endpoints
 
 ## Key Technologies
 
@@ -226,10 +246,12 @@ Consider PostgreSQL when:
 - `MODEL_NAME`: GLM model to use (default: glm-4.7)
 - `PORT`: Server port (default: 3001)
 - `NODE_ENV`: Environment (development/production)
-- `LOG_LEVEL`: Logging level (default: info)
 - `DB_PATH`: SQLite database path (default: backend/data/zo_chat.db)
 - `AUTH_USERNAME`: HTTP Basic Auth username (optional)
 - `AUTH_PASSWORD`: HTTP Basic Auth password (optional)
+- `COMPRESSION_THRESHOLD`: Token count triggering compression (default: 100000)
+- `COMPRESSION_KEEP_RECENT`: Recent messages to keep uncompressed (default: 5)
+- `CONVERSATION_TTL_HOURS`: Hours before inactive conversations are cleaned from memory (default: 24)
 
 ### Frontend
 - `VITE_API_URL`: Backend API URL (default: http://localhost:3001)
@@ -257,18 +279,6 @@ Consider PostgreSQL when:
 ### Log Retention
 - 5 files × 5MB max per log type
 - Automatic rotation when size limit reached
-
-## Testing Strategy
-
-### Backend Testing
-1. **Unit Tests**: Test individual services (MCP, LLM clients)
-2. **Integration Tests**: Test API endpoints
-3. **E2E Tests**: Test full chat flow with mocked APIs
-
-### Frontend Testing
-1. **Component Tests**: Test UI components
-2. **Integration Tests**: Test API service
-3. **E2E Tests**: Test full user flow with Playwright/Cypress
 
 ## Data Persistence
 
@@ -313,13 +323,8 @@ System messages are still stored on the Zo filesystem via MCP for:
 
 ## Future Enhancements
 
-1. **Streaming UI**: Real-time message streaming ✅ (partially implemented)
-2. **Conversation Management**: Save/load/search conversations ✅ (implemented with SQLite)
-3. **Tool Selection**: Let users enable/disable specific tools
-4. **Custom Prompts**: System message configuration
-5. **Multi-user**: User accounts and authentication
-6. **Analytics**: Usage tracking and insights
-7. **Export**: Export conversations as markdown/JSON
-8. **Conversation Search**: Full-text search across messages
-9. **Database Migrations**: Version-controlled schema changes
-10. **Backup/Restore**: Automated database backups
+1. **Tool Selection**: Let users enable/disable specific tools
+2. **Multi-user**: User accounts and authentication
+3. **Export**: Export conversations as markdown/JSON
+4. **Conversation Search**: Full-text search across messages
+5. **Backup/Restore**: Automated database backups
