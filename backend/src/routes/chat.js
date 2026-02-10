@@ -805,14 +805,14 @@ router.get('/history/:id', async (req, res) => {
 
       // Preserve toolCalls for frontend display (on assistant messages)
       if (msg.toolCalls) {
-        // Fix tool calls that were saved with intermediate states
-        // Since these are loaded messages, any 'starting' or 'executing' should be marked as completed
+        // Fix tool calls that were saved with intermediate or missing states
+        // Since these are loaded messages, any non-terminal status should be marked as completed/failed
         normalized.toolCalls = msg.toolCalls.map(tc => {
-          if (tc.status === 'starting' || tc.status === 'executing') {
+          if (!tc.status || tc.status === 'starting' || tc.status === 'executing') {
             return {
               ...tc,
-              status: 'completed',
-              success: tc.success !== false // If not explicitly false, assume success
+              status: tc.success === false ? 'failed' : 'completed',
+              success: tc.success !== false
             };
           }
           return tc;
@@ -825,8 +825,18 @@ router.get('/history/:id', async (req, res) => {
       }
 
       // Preserve segments if present (inline display format)
+      // Fix tool_call segments that were saved with intermediate or missing states
       if (msg.segments) {
-        normalized.segments = msg.segments;
+        normalized.segments = msg.segments.map(seg => {
+          if (seg.type === 'tool_call' && (!seg.status || seg.status === 'starting' || seg.status === 'executing')) {
+            return {
+              ...seg,
+              status: seg.success === false ? 'failed' : 'completed',
+              success: seg.success !== false
+            };
+          }
+          return seg;
+        });
       }
 
       // Preserve tool-specific fields if present (for tool role messages)

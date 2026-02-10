@@ -134,7 +134,7 @@ if [ "$MODE" == "prod" ]; then
     echo ""
 
     echo "🔧 Starting unified server..."
-    npm start &
+    NODE_ENV=production npm start &
     BACKEND_PID=$!
     cd ..
 

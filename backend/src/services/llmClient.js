@@ -96,6 +96,7 @@ class LLMClient {
                 toolName,
                 args: toolArgs,
                 result,
+                status: 'completed',
                 success: true
               });
             }
@@ -115,6 +116,7 @@ class LLMClient {
                 toolName,
                 args: toolArgs,
                 error: error.message,
+                status: 'failed',
                 success: false
               });
             }

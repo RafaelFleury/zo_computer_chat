@@ -27,9 +27,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Authentication middleware (only if AUTH_PASSWORD is set and not empty)
+// Authentication middleware (only in production when AUTH_PASSWORD is set)
 const authPassword = process.env.AUTH_PASSWORD?.trim();
-if (authPassword && authPassword.length > 0) {
+const isDev = process.env.NODE_ENV !== 'production';
+
+if (isDev) {
+  logger.info('🔓 Development mode - authentication skipped');
+} else if (authPassword && authPassword.length > 0) {
   const authUsername = process.env.AUTH_USERNAME || 'admin';
 
   logger.info('🔒 Authentication enabled');

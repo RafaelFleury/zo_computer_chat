@@ -21,6 +21,7 @@ To run the app as a Zo Computer service:
    npm install
    cp .env.example .env
    # Edit .env and add your API keys and backend settings
+   # also set NODE_ENV=production and set a password with AUTH_PASSWORD=your_password_here
    npm run build
    ```
 
