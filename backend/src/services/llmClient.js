@@ -5,7 +5,7 @@ import { zoMCP } from './mcpClient.js';
 class LLMClient {
   constructor() {
     this.client = null;
-    this.modelName = process.env.MODEL_NAME || 'glm-4.7';
+    this.modelName = process.env.MODEL_NAME || 'glm-5';
     this.customToolHandlers = new Map();
   }
 
